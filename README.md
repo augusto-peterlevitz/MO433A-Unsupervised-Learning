@@ -22,3 +22,18 @@ python3 -m scripts.generate_subsets \
 
 Both arguments are optional. By default, the script reads from
 `datasets/EuroSAT_RGB` and writes `datasets/eurosat_subsets.pkl` in the current directory.
+
+## DINO Feature Extraction
+Extract DINO ViT-S/16 features and labels for EuroSAT:
+
+```bash
+python3 -m scripts.dino_extract_features \
+  --eurosat-root datasets/EuroSAT_RGB \
+  --checkpoint-path dino_deitsmall16_pretrain.pth \
+  --output-dir datasets/features/dino_vits16
+```
+
+All arguments are optional. Defaults are `datasets/EuroSAT_RGB` for the dataset,
+`dino_deitsmall16_pretrain.pth` for the checkpoint,
+`datasets/features/dino_vits16` for output, a batch size of `64`, and `4`
+data-loading workers.
