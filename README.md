@@ -61,3 +61,17 @@ The script logs train/validation loss and accuracy for each epoch to
 `runs/student_cnn/metrics.csv` and saves the checkpoint with the best
 validation accuracy to `runs/student_cnn/best_model.pt`. Use
 `python3 -m scripts.train_student_cnn --help` to see all options.
+
+## DataLoader Smoke Test
+Build the VICReg, distillation, labeled-training, and final-test data loaders
+and print their dataset sizes:
+
+```bash
+python3 -m scripts.test_dataloaders \
+  --eurosat-root datasets/EuroSAT_RGB \
+  --train-pkl datasets/eurosat_train_subsets.pkl \
+  --test-pkl datasets/eurosat_test_subset.pkl
+```
+
+All options are optional. The defaults use the dataset and pickle paths shown
+above. Use `python3 -m scripts.test_dataloaders --help` to see all options.
