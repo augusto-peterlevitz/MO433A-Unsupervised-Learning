@@ -17,11 +17,18 @@ Generate labeled EuroSAT subset indices and save them to a pickle file:
 ```bash
 python3 -m scripts.generate_subsets \
   --eurosat-root datasets/EuroSAT_RGB \
-  --output-pkl label_subsets.pkl
+  --output-pkl datasets/eurosat_train_subsets.pkl \
+  --test-fraction 0.20 \
+  --test-output-pkl datasets/eurosat_test_subset.pkl
 ```
 
-Both arguments are optional. By default, the script reads from
-`datasets/EuroSAT_RGB` and writes `datasets/eurosat_subsets.pkl` in the current directory.
+All options are optional. By default, the script reads from
+`datasets/EuroSAT_RGB`, holds out 20% of the samples for final testing, and
+writes training subset indices to `datasets/eurosat_train_subsets.pkl` and held-out
+test indices to `datasets/eurosat_test_subset.pkl`. The training subsets are
+generated only from the remaining samples, so they do not overlap the test set.
+Use `--test-fraction` to set a different test proportion; it must be between 0
+and 1 (for example, `0.20` for 20%). Both pickle files contain dataset indices.
 
 ## DINO Feature Extraction
 Extract DINO ViT-S/16 features and labels for EuroSAT:
