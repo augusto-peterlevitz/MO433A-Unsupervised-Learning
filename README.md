@@ -17,9 +17,9 @@ Generate labeled EuroSAT subset indices and save them to a pickle file:
 ```bash
 python3 -m scripts.generate_subsets \
   --eurosat-root datasets/EuroSAT_RGB \
-  --output-pkl datasets/eurosat_train_subsets.pkl \
+  --train-pkl datasets/eurosat_train_subsets.pkl \
   --test-fraction 0.20 \
-  --test-output-pkl datasets/eurosat_test_subset.pkl
+  --test-pkl datasets/eurosat_test_subset.pkl
 ```
 
 All options are optional. By default, the script reads from
@@ -44,3 +44,20 @@ All arguments are optional. Defaults are `datasets/EuroSAT_RGB` for the dataset,
 `dino_deitsmall16_pretrain.pth` for the checkpoint,
 `datasets/features/dino_vits16` for output, a batch size of `64`, and `4`
 data-loading workers.
+
+## Supervised Student CNN Training
+Train the student CNN with a linear classification head and a stratified
+train/validation split:
+
+```bash
+python3 -m scripts.train_student_cnn \
+  --eurosat-root datasets/EuroSAT_RGB \
+  --epochs 30 \
+  --batch-size 64 \
+  --output-dir runs/student_cnn
+```
+
+The script logs train/validation loss and accuracy for each epoch to
+`runs/student_cnn/metrics.csv` and saves the checkpoint with the best
+validation accuracy to `runs/student_cnn/best_model.pt`. Use
+`python3 -m scripts.train_student_cnn --help` to see all options.

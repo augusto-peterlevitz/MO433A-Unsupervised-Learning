@@ -27,7 +27,7 @@ def parse_args():
         help="Path to the EuroSAT dataset directory (default: datasets/EuroSAT_RGB)",
     )
     parser.add_argument(
-        "--output-pkl",
+        "--train-pkl",
         type=Path,
         default=Path("datasets/eurosat_train_subsets.pkl"),
         help="Path where the training subset indices pickle will be saved.",
@@ -39,7 +39,7 @@ def parse_args():
         help="Fraction of the dataset held out for final testing (default: 0.20).",
     )
     parser.add_argument(
-        "--test-output-pkl",
+        "--test-pkl",
         type=Path,
         default=Path("datasets/eurosat_test_subset.pkl"),
         help="Path where the held-out test indices pickle will be saved.",
@@ -131,7 +131,7 @@ def check_and_count_subsets(labels, subsets):
 def main():
     """Load EuroSAT, generate subsets, and save training and test indices."""
     args = parse_args()
-    if args.output_pkl.resolve() == args.test_output_pkl.resolve():
+    if args.train_pkl.resolve() == args.test_pkl.resolve():
         raise ValueError("Training and test output pickle paths must be different")
 
     dataset = EuroSAT(
@@ -153,15 +153,15 @@ def main():
         f"class_counts={dict(sorted(Counter(labels[test_indices]).items()))}"
     )
 
-    args.output_pkl.parent.mkdir(parents=True, exist_ok=True)
-    with args.output_pkl.open("wb") as f:
+    args.train_pkl.parent.mkdir(parents=True, exist_ok=True)
+    with args.train_pkl.open("wb") as f:
         pickle.dump(subsets, f)
-    args.test_output_pkl.parent.mkdir(parents=True, exist_ok=True)
-    with args.test_output_pkl.open("wb") as f:
+    args.test_pkl.parent.mkdir(parents=True, exist_ok=True)
+    with args.test_pkl.open("wb") as f:
         pickle.dump(test_indices, f)
 
-    print(f"Saved training subsets to {args.output_pkl}")
-    print(f"Saved final test indices to {args.test_output_pkl}")
+    print(f"Saved training subsets to {args.train_pkl}")
+    print(f"Saved final test indices to {args.test_pkl}")
 
 
 if __name__ == "__main__":
