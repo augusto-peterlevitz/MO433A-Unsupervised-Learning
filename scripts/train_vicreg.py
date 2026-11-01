@@ -1,19 +1,21 @@
 
 import argparse
-import csv
 import json
 import pickle
 import random
 import time
-from dataclasses import dataclass, fields
+from contextlib import closing
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Subset
+from torch.utils.tensorboard import SummaryWriter
 
 from lightly.loss import VICRegLoss
 from lightly.transforms.vicreg_transform import VICRegTransform
+from tqdm import tqdm
 
 from models.student_cnn import StudentCNN
 from models.vicreg import VICRegModel
@@ -147,19 +149,35 @@ def train(config):
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    history_path = config.output_dir / "history.csv"
+    config_path = config.output_dir / "vicreg.json"
+    with open(config_path, "w", encoding="utf-8") as config_file:
+        json.dump(
+            {
+                name: str(value) if isinstance(value, Path) else value
+                for name, value in asdict(config).items()
+            },
+            config_file,
+            indent=2,
+        )
+        config_file.write("\n")
 
-    with open(history_path, "w", newline="") as history_file:
-        writer = csv.writer(history_file)
-        writer.writerow(["epoch", "loss", "learning_rate", "seconds"])
-
-        for epoch in range(config.epochs):
+    tensorboard_dir = config.output_dir / "tensorboard"
+    with closing(SummaryWriter(log_dir=str(tensorboard_dir))) as summary_writer:
+        global_step = 0
+        epoch_progress = tqdm(range(config.epochs), desc="Training", unit="epoch")
+        for epoch in epoch_progress:
             model.train()
             total_loss = 0.0
             num_batches = 0
             start_time = time.time()
 
-            for views, _ in train_loader:
+            batch_progress = tqdm(
+                train_loader,
+                desc=f"Epoch {epoch + 1}/{config.epochs}",
+                unit="batch",
+                leave=False,
+            )
+            for views, _ in batch_progress:
                 # The dataset returns two independently augmented views.
                 x0, x1 = views
                 x0 = x0.to(device, non_blocking=True)
@@ -185,8 +203,20 @@ def train(config):
                 scaler.step(optimizer)
                 scaler.update()
 
-                total_loss += loss.item()
+                batch_loss = loss.item()
+                total_loss += batch_loss
                 num_batches += 1
+                global_step += 1
+                summary_writer.add_scalar(
+                    "train/batch_loss", batch_loss, global_step
+                )
+                batch_progress.set_postfix(loss=f"{batch_loss:.4f}")
+
+            if num_batches == 0:
+                raise RuntimeError(
+                    "Training DataLoader produced no batches; "
+                    "check the subset size and batch_size."
+                )
 
             average_loss = total_loss / num_batches
             scheduler.step()
@@ -199,13 +229,13 @@ def train(config):
                 f"LR: {current_lr:.6f} "
                 f"Time: {epoch_seconds:.1f}s"
             )
-            writer.writerow([
-                epoch + 1,
-                average_loss,
-                current_lr,
-                epoch_seconds,
-            ])
-            history_file.flush()
+            summary_writer.add_scalar("train/epoch_loss", average_loss, epoch + 1)
+            summary_writer.add_scalar("train/learning_rate", current_lr, epoch + 1)
+            summary_writer.add_scalar("train/epoch_seconds", epoch_seconds, epoch + 1)
+            summary_writer.flush()
+            epoch_progress.set_postfix(
+                loss=f"{average_loss:.4f}", lr=f"{current_lr:.2e}"
+            )
 
             checkpoint = {
                 "epoch": epoch + 1,
@@ -224,6 +254,8 @@ def train(config):
     backbone_path = config.output_dir / "student_backbone.pth"
     torch.save(model.backbone.state_dict(), backbone_path)
     print("VICReg training finished.")
+    print(f"Configuration saved to: {config_path}")
+    print(f"TensorBoard logs saved to: {tensorboard_dir}")
     print(f"Backbone saved to: {backbone_path}")
 
 
