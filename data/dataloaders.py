@@ -7,6 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
 from data.eurosat import EuroSAT
+from lightly.transforms.vicreg_transform import VICRegTransform
 
 
 # --------------------------------------------------
@@ -46,18 +47,20 @@ train_transform = transforms.Compose([
 
 # VICReg needs two independently augmented views
 # of the same image.
-class TwoViewsTransform:
-    def __init__(self, transform):
-        self.transform = transform
+# class TwoViewsTransform:
+#     def __init__(self, transform):
+#         self.transform = transform
 
-    def __call__(self, image):
-        view1 = self.transform(image)
-        view2 = self.transform(image)
-        return view1, view2
+#     def __call__(self, image):
+#         view1 = self.transform(image)
+#         view2 = self.transform(image)
+#         return view1, view2
 
 
-vicreg_transform = TwoViewsTransform(train_transform)
-
+# vicreg_transform = TwoViewsTransform(train_transform)
+vicreg_transform = VICRegTransform(
+    input_size=64,
+)
 
 # --------------------------------------------------
 # 3. Evaluation transform

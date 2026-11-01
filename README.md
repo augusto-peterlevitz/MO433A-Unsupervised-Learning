@@ -62,6 +62,18 @@ The script logs train/validation loss and accuracy for each epoch to
 validation accuracy to `runs/student_cnn/best_model.pt`. Use
 `python3 -m scripts.train_student_cnn --help` to see all options.
 
+## VICReg Training
+Train the student backbone with VICReg using the settings in
+`configs/vicreg.json`:
+
+```bash
+python3 -m scripts.train_vicreg
+```
+
+Pass `--config path/to/config.json` to load a different JSON configuration.
+The configuration contains the dataset and subset paths, model width, training
+hyperparameters, random seed, worker count, and output directory.
+
 ## DataLoader Smoke Test
 Build the VICReg, distillation, labeled-training, and final-test data loaders
 and print their dataset sizes:
