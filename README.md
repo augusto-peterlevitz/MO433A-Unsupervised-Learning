@@ -71,11 +71,14 @@ python3 -m scripts.train_vicreg
 ```
 
 Pass `--config path/to/config.json` to load a different JSON configuration.
-The configuration contains the dataset and subset paths, model width, training
-hyperparameters, random seed, worker count, and output directory. The resolved
-configuration is saved as `vicreg.json` in that output directory along with
-`last_checkpoint.pth` and `student_backbone.pth`. Batch and epoch metrics are
-logged to TensorBoard under `tensorboard/`; view them with:
+The configuration contains an `experiment_name` (default `vicreg_training`),
+dataset and subset paths, model width, training hyperparameters, random seed,
+worker count, and output directory. The resolved configuration is saved as
+`vicreg.json` in that output directory along with `last_checkpoint.pth` and
+`student_backbone.pth`. Batch and epoch metrics are logged to a uniquely named
+TensorBoard run directory under `tensorboard/`, using the experiment name and
+start date/time. The name and timestamp are also recorded in TensorBoard. View
+all runs with:
 
 ```bash
 tensorboard --logdir checkpoints/vicreg_width_1.0/tensorboard

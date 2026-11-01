@@ -1,9 +1,10 @@
 {
+  "experiment_name": "vicreg_training",
   "dataset_root": "datasets/EuroSAT_RGB",
   "subsets_path": "datasets/eurosat_train_subsets.pkl",
   "width_mult": 1.0,
   "batch_size": 64,
-  "epochs": 30,
+  "epochs": 5,
   "learning_rate": 0.001,
   "weight_decay": 0.0001,
   "num_workers": 8,

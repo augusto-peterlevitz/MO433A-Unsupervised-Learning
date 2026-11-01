@@ -6,6 +6,7 @@ import random
 import time
 from contextlib import closing
 from dataclasses import asdict, dataclass, fields
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +25,7 @@ from data.eurosat import EuroSAT
 
 @dataclass
 class TrainingConfig:
+    experiment_name: str = "vicreg_training"
     dataset_root: Path = Path("datasets/EuroSAT_RGB")
     subsets_path: Path = Path("datasets/eurosat_train_subsets.pkl")
     width_mult: float = 1.0
@@ -36,6 +38,14 @@ class TrainingConfig:
     output_dir: Path = Path("checkpoints/vicreg_width_1.0")
 
     def validate(self):
+        if (
+            not self.experiment_name.strip()
+            or "/" in self.experiment_name
+            or "\\" in self.experiment_name
+        ):
+            raise ValueError(
+                "experiment_name must be non-empty and cannot contain path separators"
+            )
         if self.epochs < 1 or self.batch_size < 1 or self.num_workers < 0:
             raise ValueError(
                 "epochs and batch_size must be positive; "
@@ -60,6 +70,7 @@ def load_config(path):
         raise ValueError(f"Unknown training configuration fields: {names}")
 
     path_fields = {"dataset_root", "subsets_path", "output_dir"}
+    string_fields = {"experiment_name"}
     integer_fields = {"batch_size", "epochs", "num_workers", "seed"}
     float_fields = {"width_mult", "learning_rate", "weight_decay"}
     for name, value in values.items():
@@ -67,6 +78,8 @@ def load_config(path):
             if not isinstance(value, str):
                 raise ValueError(f"{name} must be a string path")
             values[name] = Path(value)
+        elif name in string_fields and not isinstance(value, str):
+            raise ValueError(f"{name} must be a string")
         elif name in integer_fields and type(value) is not int:
             raise ValueError(f"{name} must be an integer")
         elif name in float_fields:
@@ -161,8 +174,13 @@ def train(config):
         )
         config_file.write("\n")
 
-    tensorboard_dir = config.output_dir / "tensorboard"
+    started_at = datetime.now().astimezone()
+    run_timestamp = started_at.strftime("%Y%m%d_%H%M%S")
+    run_name = f"{config.experiment_name}_{run_timestamp}"
+    tensorboard_dir = config.output_dir / "tensorboard" / run_name
     with closing(SummaryWriter(log_dir=str(tensorboard_dir))) as summary_writer:
+        summary_writer.add_text("experiment/name", config.experiment_name, 0)
+        summary_writer.add_text("experiment/started_at", started_at.isoformat(), 0)
         global_step = 0
         epoch_progress = tqdm(range(config.epochs), desc="Training", unit="epoch")
         for epoch in epoch_progress:
