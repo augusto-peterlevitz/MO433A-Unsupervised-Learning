@@ -1,0 +1,21 @@
+{
+  "checkpoint": "checkpoints/vicreg_width_1.0/student_backbone.pth",
+  "width_mult": 1.0,
+  "seed": 42,
+  "feature_dimension": 256,
+  "num_train_images": 21600,
+  "num_test_images": 5400,
+  "knn": {
+    "k": 20,
+    "accuracy": 0.6977777777777778
+  },
+  "kmeans": {
+    "nmi": 0.32978025681627837,
+    "ari": 0.21407028345003262
+  },
+  "embedding_std": {
+    "mean_dimension_std": 0.04462451487779617,
+    "min_dimension_std": 0.02053678408265114,
+    "max_dimension_std": 0.07682983577251434
+  }
+}

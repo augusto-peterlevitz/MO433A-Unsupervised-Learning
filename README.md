@@ -84,6 +84,21 @@ all runs with:
 tensorboard --logdir checkpoints/vicreg_width_1.0/tensorboard
 ```
 
+## VICReg Evaluation
+Evaluate a trained VICReg backbone on the held-out EuroSAT test set using
+`configs/evaluate_vicreg.json`:
+
+```bash
+python3 -m evaluation.evaluate_vicreg
+```
+
+Pass `--config path/to/config.json` to use another JSON configuration. The
+configuration contains the dataset, split, checkpoint, and output paths, model
+width, batch size, worker count, and `seed`. The seed controls Python, NumPy,
+PyTorch, data-loader worker initialization, and k-means initialization.
+Evaluation metrics and extracted features are saved under the configured output
+directory.
+
 ## DataLoader Smoke Test
 Build the VICReg, distillation, labeled-training, and final-test data loaders
 and print their dataset sizes:

@@ -1,0 +1,11 @@
+{
+  "dataset_root": "datasets/EuroSAT_RGB",
+  "subsets_path": "datasets/eurosat_train_subsets.pkl",
+  "test_indices_path": "datasets/eurosat_test_subset.pkl",
+  "checkpoint": "checkpoints/vicreg_width_1.0/student_backbone.pth",
+  "output_dir": "evaluation/results/vicreg_width_1.0",
+  "width_mult": 1.0,
+  "batch_size": 128,
+  "num_workers": 8,
+  "seed": 42
+}
