@@ -4,7 +4,7 @@
   "subsets_path": "datasets/eurosat_train_subsets.pkl",
   "width_mult": 1.0,
   "batch_size": 64,
-  "epochs": 5,
+  "epochs": 1,
   "learning_rate": 0.001,
   "weight_decay": 0.0001,
   "num_workers": 8,

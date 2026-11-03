@@ -99,6 +99,36 @@ PyTorch, data-loader worker initialization, and k-means initialization.
 Evaluation metrics and extracted features are saved under the configured output
 directory.
 
+## SVM Hyperparameter Search and Probes
+Select the linear and RBF SVM parameters once using the 100% VICReg training
+split. The held-out test split is not used during cross-validation. The RBF
+search and final RBF probes use the same deterministic, stratified cap of at
+most 10,000 training examples:
+
+```bash
+python3 -m evaluation.search_svm_hyperparameters \
+  --feature-dir evaluation/results/vicreg_width_1.0
+```
+
+The command saves `svm_hyperparameters.json` and `svm_grid_search.csv` in the
+VICReg results directory by default. Then evaluate every probe over the
+predefined 1%, 10%, 50%, and 100% label subsets for each supplied encoder:
+
+```bash
+python3 -m evaluation.train_probes \
+  --feature dino=datasets/features/dino_vits16 \
+  --feature vicreg=evaluation/results/vicreg_width_1.0 \
+  --svm-params evaluation/results/vicreg_width_1.0/svm_hyperparameters.json \
+  --output-dir evaluation/results/all_probes
+```
+
+Each feature source must be a directory containing either `features.npy` and
+`labels.npy` in dataset-index order, or an indexed `features_full.npz` cache.
+The evaluation fits cosine k-NN, linear SVM, and RBF SVM using the same
+L2-normalization and training-only standardization protocol. It writes one
+per-draw CSV, a mean and standard-deviation summary CSV, and a JSON protocol
+record in the output directory.
+
 ## DataLoader Smoke Test
 Build the VICReg, distillation, labeled-training, and final-test data loaders
 and print their dataset sizes:
