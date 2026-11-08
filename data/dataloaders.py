@@ -138,6 +138,7 @@ def create_loader(
     return_labels,
     num_workers=4,
     drop_last=False,
+    pin_memory=True,
 ):
     dataset = EuroSATSubset(
         root=root,
@@ -151,9 +152,28 @@ def create_loader(
         batch_size=batch_size,
         shuffle=shuffle,
         num_workers=num_workers,
-        pin_memory=torch.cuda.is_available(),
+        pin_memory=pin_memory,
         drop_last=drop_last,
         persistent_workers=(num_workers > 0),
     )
 
     return loader
+
+def get_data(requested_indices, feature_dir):
+
+    features = np.load(feature_dir / "features.npy")
+    labels = np.load(feature_dir / "labels.npy")
+    indices = np.load(feature_dir / "indices.npy")
+
+    row_by_index = {int(index): row for row, index in enumerate(indices)}
+    missing = [int(index) for index in requested_indices if int(index) not in row_by_index]
+    
+    if missing:
+        raise ValueError(f"Feature cache is missing dataset indices, e.g. {missing[:5]}.")
+    
+    rows = np.asarray([row_by_index[int(index)] for index in requested_indices])
+
+    requested_features = features[rows]
+    requested_labels = labels[rows]
+
+    return requested_features, requested_labels
