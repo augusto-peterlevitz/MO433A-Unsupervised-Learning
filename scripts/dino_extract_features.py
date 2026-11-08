@@ -141,6 +141,7 @@ def main():
     # 4. Save features, labels, and provenance metadata.
     np.save(args.output_dir / "features.npy", features)
     np.save(args.output_dir / "labels.npy", labels)
+    np.save(args.output_dir / "indices.npy", np.arange(len(dataset)))
 
     metadata = {
         "model": "DINO ViT-S/16",
