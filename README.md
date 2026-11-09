@@ -67,7 +67,7 @@ Train the student backbone with VICReg using the settings in
 `configs/vicreg.json`:
 
 ```bash
-python3 -m scripts.train_vicreg
+python3 -m training.train_vicreg --config configs/vicreg.json
 ```
 
 Pass `--config path/to/config.json` to load a different JSON configuration.
@@ -83,6 +83,70 @@ all runs with:
 ```bash
 tensorboard --logdir checkpoints/vicreg_width_1.0/tensorboard
 ```
+
+## VICReg Feature Extraction
+Extract deterministic backbone features, labels, and original dataset indices
+for both the configured training split and the held-out test split:
+
+```bash
+python3 -m probing.extract_features
+```
+
+The default config is `configs/vicreg.json`. The script reads the dataset root,
+training-subset pickle, model width, batch size, worker count, and checkpoint
+location from that config. It uses `datasets/eurosat_test_subset.pkl` for the
+test indices, loads `student_backbone.pth` from the configured output
+directory, and writes the cache to
+`datasets/features/vicreg_width_<width_mult>`.
+
+To override paths or extraction settings:
+
+```bash
+python3 -m probing.extract_features \
+  --checkpoint-path checkpoints/vicreg_width_1.0/student_backbone.pth \
+  --output-dir datasets/features/vicreg_width_1 \
+  --batch-size 64 \
+  --num-workers 4
+```
+
+The output directory contains `features.npy`, `labels.npy`, and `indices.npy`;
+rows in these files correspond to the saved original dataset indices. The
+cache includes both training and test samples, so use only training indices
+when tuning and keep test indices held out for final evaluation. Features are
+saved raw; preprocessing is deferred to the SVM pipeline so the scaler is
+fitted separately inside each cross-validation fold. Run
+`python3 -m probing.extract_features --help` for all options.
+
+## SVM Probing and Hyperparameter Tuning
+Tune the SVM parameters once on the direct-training (row B) VICReg features,
+using only the full labeled training split. The grid search uses 5-fold
+stratified CV and searches a small C/gamma grid for the RBF kernel:
+
+```bash
+python3 -m probing.svm_gridsearch \
+  --features-dir datasets/features/vicreg_width_1 \
+  --kernel rbf \
+  --output-dir runs/probes
+```
+
+This saves `svm_gridsearch_rbf.json` in `runs/probes`. Repeat with
+`--kernel linear` for the linear SVM. Then evaluate the fixed
+parameters on the same label subsets for each encoder; repeat `--features`
+for every encoder cache:
+
+```bash
+python3 -m probing.svm_evaluate \
+  --features VICReg=datasets/features/vicreg_width_1 \
+  --params runs/probes/svm_gridsearch_rbf.json \
+  --output runs/probes/rbf_results.csv
+```
+
+`probing.svm_evaluate` supports both `linear` and `rbf` parameter files and
+reports test accuracy for each fraction/draw in the training-subset pickle.
+Use the JSON file produced by `svm_gridsearch.py` for the matching kernel.
+Keep the parameter file selected on row B fixed for every encoder; do not tune
+on test data or separately for each encoder. Run
+`python3 -m probing.svm_evaluate evaluate --help` for the evaluator options.
 
 ## DataLoader Smoke Test
 Build the VICReg, distillation, labeled-training, and final-test data loaders

@@ -11,6 +11,7 @@ from sklearn.preprocessing import Normalizer, StandardScaler
 from sklearn.svm import SVC, LinearSVC
 
 from data.dataloaders import load_indices, get_data
+import numpy as np
 
 RANDOM_SEED = 42
 
@@ -19,13 +20,14 @@ def parse_args():
         description="Tune shared SVM settings on row B and evaluate feature caches."
     )
 
-    parser.add_argument("--features-dir", type=Path, required=True)
+    parser.add_argument("--features-dir", dest="feature_dir", type=Path, required=True)
     parser.add_argument("--train-pkl", type=Path, default=Path("datasets/eurosat_train_subsets.pkl"))
-    parser.add_argument("--output_dir", type=Path, required=True, default=Path("outputs)"))
+    parser.add_argument("--test-pkl", type=Path, default=Path("datasets/eurosat_test_subset.pkl"))
+    parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--kernel", choices=("linear", "rbf"), required=True)
-    parser.add_argument("--max-tuning-samples", type=int, default=10_000)
     parser.add_argument("--n-jobs", type=int, default=4)
-    parser.add_argument("--output_dir", type=Path, required=True)
+    parser.add_argument("--n-splits", type=int, default=5, help="Number of splits for cross-validation (default: 5).")
+
     return parser.parse_args()
 
 def perform_gridsearch(x_train, y_train, n_splits, random_state, pipeline, parameter_grid, n_jobs):
@@ -93,7 +95,7 @@ def main():
     results = perform_gridsearch(
         x_train=x_train,
         y_train=y_train,
-        n_splits=5,
+        n_splits=args.n_splits,
         random_state=RANDOM_SEED,
         pipeline=gridsearch_pipeline,
         parameter_grid=parameter_grid,
@@ -101,6 +103,7 @@ def main():
     )
 
     output_path = args.output_dir / f"svm_gridsearch_{args.kernel}.json"
+    results["kernel"] = args.kernel
     save_results(output_path, results)
 
 if __name__ == "__main__":
