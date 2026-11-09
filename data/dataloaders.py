@@ -8,7 +8,7 @@ from torchvision import transforms
 
 from data.eurosat import EuroSAT
 from lightly.transforms.vicreg_transform import VICRegTransform
-
+import numpy as np
 
 # --------------------------------------------------
 # 1. Normalization
