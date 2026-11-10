@@ -11,8 +11,6 @@ from data.dataloaders import load_indices, get_data
 import pandas as pd
 from tqdm import tqdm
 
-LABEL_FRACTIONS = (0.01, 0.10, 0.50, 1.00)
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
