@@ -136,17 +136,19 @@ for every encoder cache:
 
 ```bash
 python3 -m probing.svm_evaluate \
-  --features VICReg=datasets/features/vicreg_width_1 \
+  --features-dir datasets/features/vicreg_width_1 \
   --params runs/probes/svm_gridsearch_rbf.json \
-  --output runs/probes/rbf_results.csv
+  --output-dir runs/probes
 ```
 
 `probing.svm_evaluate` supports both `linear` and `rbf` parameter files and
-reports test accuracy for each fraction/draw in the training-subset pickle.
-Use the JSON file produced by `svm_gridsearch.py` for the matching kernel.
-Keep the parameter file selected on row B fixed for every encoder; do not tune
-on test data or separately for each encoder. Run
-`python3 -m probing.svm_evaluate evaluate --help` for the evaluator options.
+reports test accuracy at 1%, 10%, 50%, and 100% of the labeled training set,
+for each draw in the training-subset pickle. It writes per-draw results and a
+mean/std summary by fraction, with the feature-cache directory name identifying
+the encoder in the output filename. Run it once per encoder with the same
+parameter file selected on row B; do not tune on test data or separately for
+each encoder. Use the JSON file produced by `svm_gridsearch.py` for the matching
+kernel. Run `python3 -m probing.svm_evaluate --help` for the evaluator options.
 
 ## DataLoader Smoke Test
 Build the VICReg, distillation, labeled-training, and final-test data loaders

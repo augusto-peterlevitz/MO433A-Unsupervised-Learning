@@ -1,11 +1,8 @@
 import argparse
-import csv
 import json
-import pickle
 from pathlib import Path
 
 import numpy as np
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import Normalizer, StandardScaler
 from sklearn.svm import SVC, LinearSVC
@@ -13,6 +10,8 @@ from sklearn.svm import SVC, LinearSVC
 from data.dataloaders import load_indices, get_data
 import pandas as pd
 from tqdm import tqdm
+
+LABEL_FRACTIONS = (0.01, 0.10, 0.50, 1.00)
 
 
 def parse_args():
@@ -38,7 +37,10 @@ def load_parameters(params_path):
 
 def evaluate(training_pipeline, train_subsets, x_test, y_test, feature_dir):
     results = []
-    for (fraction, draw), sample_indices in tqdm(sorted(train_subsets.items()), desc="Evaluating subsets"):
+
+    for (fraction, draw), sample_indices in tqdm(
+        sorted(train_subsets.items()), desc="Evaluating label fractions"
+    ):
         sample_indices = np.asarray(sample_indices, dtype=np.int64)
         x_train, y_train = get_data(sample_indices, feature_dir)
 
@@ -49,7 +51,7 @@ def evaluate(training_pipeline, train_subsets, x_test, y_test, feature_dir):
             "draw": int(draw),
             "accuracy": float(accuracy),
         })
-    
+
     return pd.DataFrame(results)
 
 
@@ -63,10 +65,14 @@ def main():
         classifier = LinearSVC(C=svm_params["C"], dual="auto", max_iter=10_000)
 
     elif svm_params["kernel"] == "rbf":
-        classifier = SVC(C=svm_params["C"], gamma=svm_params.get("gamma") or "scale", kernel="rbf")    
+        classifier = SVC(
+            C=svm_params["C"],
+            gamma=svm_params.get("gamma") or "scale",
+            kernel="rbf",
+        )
     else:
-        raise ValueError(f"Unsupported kernel: {args.kernel}")
-    
+        raise ValueError(f"Unsupported kernel: {svm_params['kernel']}")
+
     training_pipeline = Pipeline([
         ("normalize", Normalizer(norm="l2")),
         ("scale", StandardScaler()),
@@ -80,10 +86,27 @@ def main():
     x_test, y_test = get_data(test_indices, args.feature_dir)
 
     results = evaluate(training_pipeline, train_subsets, x_test, y_test, args.feature_dir)
+    encoder_name = args.feature_dir.name
+    results.insert(0, "encoder", encoder_name)
+    summary = (
+        results.groupby("fraction")["accuracy"]
+        .agg(mean_accuracy="mean", std_accuracy="std", draws="count")
+        .reset_index()
+    )
 
-    output_path = args.output_dir / f"svm_evaluation_{svm_params['kernel']}.csv"
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = (
+        args.output_dir
+        / f"svm_evaluation_{encoder_name}_{svm_params['kernel']}.csv"
+    )
     results.to_csv(output_path, index=False)
     print(f"Evaluation results saved to {output_path}")
+    summary_path = (
+        args.output_dir
+        / f"svm_evaluation_{encoder_name}_{svm_params['kernel']}_summary.csv"
+    )
+    summary.to_csv(summary_path, index=False)
+    print(f"Label-efficiency summary saved to {summary_path}")
 
 
 if __name__ == "__main__":
