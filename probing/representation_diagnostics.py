@@ -9,6 +9,7 @@ from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 from sklearn.preprocessing import normalize
+from data.dataloaders import load_test_indices, get_data
 
 
 def parse_args():
@@ -35,52 +36,45 @@ def parse_args():
     parser.add_argument("--random-state", type=int, default=42)
     return parser.parse_args()
 
-
-def load_test_indices(test_path):
-    with test_path.open("rb") as file:
-        indices = np.asarray(pickle.load(file), dtype=np.int64)
-    if indices.ndim != 1 or indices.size == 0:
-        raise ValueError(f"Test indices in {test_path} must be a non-empty 1-D array.")
-    if np.unique(indices).size != indices.size:
-        raise ValueError(f"Test indices in {test_path} contain duplicates.")
-    return indices
-
-
-def load_cached_features(requested_indices, feature_dir):
-    features = np.load(feature_dir / "features.npy")
-    labels = np.load(feature_dir / "labels.npy")
-    indices = np.load(feature_dir / "indices.npy")
-    if features.ndim != 2 or labels.ndim != 1 or indices.ndim != 1:
-        raise ValueError(f"Invalid feature cache array shapes in {feature_dir}.")
-    if not (features.shape[0] == labels.size == indices.size):
-        raise ValueError(f"Feature, label, and index counts differ in {feature_dir}.")
-    if np.unique(indices).size != indices.size:
-        raise ValueError(f"Feature cache indices in {feature_dir} contain duplicates.")
-
-    row_by_index = {int(index): row for row, index in enumerate(indices)}
-    missing = [
-        int(index) for index in requested_indices if int(index) not in row_by_index
-    ]
-    if missing:
-        raise ValueError(
-            f"Feature cache {feature_dir} is missing dataset indices, "
-            f"e.g. {missing[:5]}."
-        )
-    rows = np.asarray([row_by_index[int(index)] for index in requested_indices])
-    return features[rows], labels[rows]
-
+def fit_kmeans(features, labels, n_clusters, random_state, n_init=10, random_state=None):
+    
+    clusters = KMeans(
+        n_clusters=n_clusters,
+        n_init=n_init,
+        random_state=random_state,
+        ).fit_predict(features)
+    
+    metrics = {
+        "nmi": float(normalized_mutual_info_score(labels, clusters)),
+        "ari": float(adjusted_rand_score(labels, clusters)),
+    }
+    return metrics
 
 def main():
     args = parse_args()
-    if len(set(path.name for path in args.features_dir)) != len(args.features_dir):
-        raise ValueError("Feature cache directory names must be unique.")
 
     test_indices = load_test_indices(args.test_pkl)
     encoder_data = []
     reference_labels = None
 
+    # for feature_dir in args.features_dir:
+    #     features, labels = get_data(test_indices, feature_dir)
+    #     # Unit-length features put embeddings from differently scaled encoders
+    #     # on a comparable scale for these distance-based diagnostics.
+    #     features = normalize(features, norm="l2")
+    #     n_clusters = len(np.unique(labels))
+    #     metrics = fit_kmeans(features, labels, n_clusters=n_clusters, n_init=10, random_state=args.random_state)
+    #     projections = TSNE(
+    #         n_components=2,
+    #         perplexity=args.perplexity,
+    #         init="pca",
+    #         learning_rate="auto",
+    #         n_iter=1000,
+    #         random_state=args.random_state,
+    #     ).fit_transform(features)
+
     for feature_dir in args.features_dir:
-        features, labels = load_cached_features(test_indices, feature_dir)
+        features, labels = get_data(test_indices, feature_dir)
         if features.ndim != 2 or features.shape[0] != test_indices.size:
             raise ValueError(
                 f"Expected a 2-D feature matrix for {feature_dir} with "
