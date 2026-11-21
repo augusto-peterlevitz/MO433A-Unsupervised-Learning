@@ -117,6 +117,31 @@ saved raw; preprocessing is deferred to the SVM pipeline so the scaler is
 fitted separately inside each cross-validation fold. Run
 `python3 -m probing.extract_features --help` for all options.
 
+## Row A Random-Baseline Feature Extraction
+Extract row-A features for each random initialization and student size:
+
+```bash
+python3 -m scripts.random_baseline \
+  --eurosat-root datasets/EuroSAT_RGB \
+  --train-pkl datasets/eurosat_train_subsets.pkl \
+  --test-pkl datasets/eurosat_test_subset.pkl \
+  --width-mults 0.5 1.0 \
+  --seeds 42 43 44 \
+  --batch-size 64 \
+  --num-workers 4
+```
+
+This creates one deterministic feature cache per `(width, seed)` under
+`datasets/features/random_baseline/{small_cnn,larger_cnn}/seed<seed>`. The two
+widths are assigned to `small_cnn` and `larger_cnn` by ascending width. The
+models are randomly
+initialized, receive no pretraining, and are kept in `eval()` mode during
+feature extraction. Keeping BatchNorm in `eval()` uses its default running
+statistics and avoids making the extracted features depend on the extraction
+batch composition. The default command covers two student widths and three
+seeds; for the large-size protocol, run the larger width with at least two
+seeds and report individual runs as well as mean and standard deviation.
+
 ## SVM Probing and Hyperparameter Tuning
 Tune the SVM parameters once on the direct-training (row B) VICReg features,
 using only the full labeled training split. The grid search uses 5-fold
@@ -170,8 +195,40 @@ directory gets kernel-specific files such as
 `label_efficiency/label_efficiency_rbf_curves.png`. Override the plot location
 with `--plot-dir`, or disable plotting with `--no-plot`.
 
-The standalone `probing.plot_label_efficiency` script also supports
-`--kernel linear` or `--kernel rbf`.
+The standalone `probing.plot_label_efficiency` script supports
+`--probe linear`, `--probe rbf`, or `--probe knn`.
+
+## KNN Label-Efficiency Curve
+The KNN evaluator writes per-seed and combined summaries. Run the plot script
+to generate a log-scale curve from those summaries:
+
+```bash
+python3 -m probing.knn_evaluate \
+  --features-dir datasets/features/vicreg_width_1 \
+  --output-dir runs/probes
+```
+
+For row A, pass every seed cache in the same command to aggregate both random
+initializations and labeled-subset draws:
+
+```bash
+python3 -m probing.knn_evaluate \
+  --features-dir \
+    datasets/features/random_baseline/small_cnn/seed42 \
+    datasets/features/random_baseline/small_cnn/seed43 \
+    datasets/features/random_baseline/small_cnn/seed44 \
+  --output-dir runs/probes
+```
+
+Results are saved beneath `runs/probes/knn_evaluation/`. Row-A per-seed
+results and summaries go into directories such as
+`random_baseline/small_cnn/seed42/`; the pooled seed/draw results are in the
+sibling `random_baseline/small_cnn/aggregate/` directory. The KNN probe uses
+cosine distance and, for every labeled subset and draw, chooses
+`k = min(20, minimum labeled examples per class)`. Feature L2 normalization
+and StandardScaler preprocessing are fitted consistently within each probe
+training split. To create a label-efficiency plot from the nested KNN summaries,
+run `python3 -m probing.plot_label_efficiency --probe knn --input-dir runs/probes`.
 
 ## Representation Diagnostics
 Run the Section 3.7 diagnostics on the held-out test features for every

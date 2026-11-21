@@ -17,7 +17,12 @@ def parse_args():
     parser.add_argument("--eurosat-root", type=Path, default=Path("datasets/EuroSAT_RGB"))
     parser.add_argument("--train-pkl", type=Path, default=Path("datasets/eurosat_train_subsets.pkl"))
     parser.add_argument("--test-pkl", type=Path, default=Path("datasets/eurosat_test_subset.pkl"))
-    parser.add_argument("--output-dir", type=Path, default=Path("datasets/features"))
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("datasets/features/random_baseline"),
+        help="Root directory for row-A feature caches.",
+    )
     parser.add_argument("--width-mults", nargs="+", type=float, default=[0.5, 1.0])
     parser.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
     parser.add_argument("--batch-size", type=int, default=64)
@@ -41,6 +46,8 @@ def main():
         raise ValueError("num_workers must be nonnegative.")
     if not args.width_mults or any(width <= 0 for width in args.width_mults):
         raise ValueError("width-mults must contain positive values.")
+    if len(set(args.width_mults)) > 2:
+        raise ValueError("Row A supports exactly a small and a larger student; provide at most two distinct width-mults.")
     if not args.seeds:
         raise ValueError("At least one random seed is required.")
 
@@ -54,6 +61,12 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
+
+    sorted_widths = sorted(set(args.width_mults))
+    size_by_width = {
+        width: ("small_cnn" if index == 0 else "larger_cnn")
+        for index, width in enumerate(sorted_widths)
+    }
 
     dataloader = create_loader(
         root=args.eurosat_root,
@@ -79,10 +92,8 @@ def main():
             student.eval()
             features, labels = student.extract_features(dataloader, device)
 
-            output_dir = (
-                args.output_dir
-                / f"random_width_{width_mult:g}_seed_{seed}"
-            )
+            size_name = size_by_width[width_mult]
+            output_dir = args.output_dir / size_name / f"seed{seed}"
             output_dir.mkdir(parents=True, exist_ok=True)
             np.save(output_dir / "features.npy", features)
             np.save(output_dir / "labels.npy", labels)
@@ -90,6 +101,7 @@ def main():
 
             metadata = {
                 "model": f"Random StudentCNN width {width_mult:g}",
+                "encoder": f"random_baseline_{size_name}_seed{seed}",
                 "row": "A",
                 "seed": seed,
                 "width_mult": width_mult,
