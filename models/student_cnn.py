@@ -45,23 +45,14 @@ class StudentCNN(nn.Module):
     No classification head is included.
     """
 
-    def __init__(self, width_mult=1.0):
+    def __init__(self, base_channels):
         super().__init__()
 
-        if width_mult <= 0:
-            raise ValueError("width_mult must be positive")
-
-        # The architecture changes only through this width multiplier.
-        base = int(32 * width_mult)
-
-        if base < 1:
-            raise ValueError("width_mult is too small")
-
         channels = [
-            base,
-            base * 2,
-            base * 4,
-            base * 8,
+            base_channels,
+            base_channels * 2,
+            base_channels * 4,
+            base_channels * 8,
         ]
 
         self.stem = nn.Sequential(
@@ -148,3 +139,32 @@ class StudentCNN(nn.Module):
             torch.cat(feature_batches).numpy(),
             torch.cat(label_batches).numpy(),
         )
+
+
+class SmallStudent(StudentCNN):
+    """Narrow student variant with a 128-dimensional feature vector."""
+
+    def __init__(self):
+        super().__init__(base_channels=16)
+
+
+class LargerStudent(StudentCNN):
+    """Wider student variant with a 256-dimensional feature vector."""
+
+    def __init__(self):
+        super().__init__(base_channels=32)
+
+
+def build_student(student_cnn):
+    """Construct a named student architecture."""
+    architectures = {
+        "small": SmallStudent,
+        "large": LargerStudent,
+    }
+    try:
+        architecture = architectures[student_cnn]
+    except KeyError as error:
+        raise ValueError(
+            f"Unsupported student CNN {student_cnn!r}; choose 'small' or 'large'."
+        ) from error
+    return architecture()

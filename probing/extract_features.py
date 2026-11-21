@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from data.dataloaders import create_loader, eval_transform, load_indices
-from models.student_cnn import StudentCNN
+from models.student_cnn import build_student
 from training.train_vicreg import load_config
 
 
@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        help="Feature output directory (defaults to datasets/features/vicreg_width_<width>).",
+        help="Feature output directory (defaults to datasets/features/vicreg/<size>/seed<seed>).",
     )
     parser.add_argument(
         "--batch-size",
@@ -71,7 +71,9 @@ def main():
     )
     output_dir = args.output_dir or (
         Path("datasets/features")
-        / f"vicreg_width_{config.width_mult:g}"
+        / "vicreg"
+        / ("small_cnn" if config.student_cnn == "small" else "larger_cnn")
+        / f"seed{config.seed}"
     )
     batch_size = (
         config.batch_size if args.batch_size is None else args.batch_size
@@ -111,7 +113,7 @@ def main():
     print(f"Training samples: {len(train_indices)}")
     print(f"Test samples: {len(test_indices)}")
 
-    student = StudentCNN(width_mult=config.width_mult)
+    student = build_student(config.student_cnn)
     student.load_weights(checkpoint_path)
     student.to(device)
     
@@ -131,7 +133,10 @@ def main():
     np.save(output_dir / "indices.npy", sample_indices)
 
     metadata = {
-        "model": f"VICReg student width {config.width_mult:g}",
+        "model": f"VICReg {config.student_cnn} StudentCNN",
+        "encoder": f"{config.experiment_name}_seed{config.seed}",
+        "row": "B",
+        "seed": config.seed,
         "checkpoint": str(checkpoint_path),
         "num_parameters": sum(p.numel() for p in student.parameters()),
         "feature_dim": int(features.shape[1]),

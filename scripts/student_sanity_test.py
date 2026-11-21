@@ -1,7 +1,7 @@
 
 import torch
 
-from models.student_cnn import StudentCNN
+from models.student_cnn import build_student
 
 
 def count_parameters(model):
@@ -12,11 +12,8 @@ device = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
 )
 
-for name, width in [
-    ("small", 0.5),
-    ("large", 1.0),
-]:
-    model = StudentCNN(width_mult=width).to(device)
+for name in ("small", "large"):
+    model = build_student(name).to(device)
 
     x = torch.randn(4, 3, 96, 96, device=device)
 
