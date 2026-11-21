@@ -124,6 +124,14 @@ def load_indices(train_pkl, test_pkl):
 
     return train_subsets, train_indices, test_indices
 
+def load_test_indices(test_path):
+    with test_path.open("rb") as file:
+        indices = np.asarray(pickle.load(file), dtype=np.int64)
+    if indices.ndim != 1 or indices.size == 0:
+        raise ValueError(f"Test indices in {test_path} must be a non-empty 1-D array.")
+    if np.unique(indices).size != indices.size:
+        raise ValueError(f"Test indices in {test_path} contain duplicates.")
+    return indices
 
 # --------------------------------------------------
 # 6. DataLoader factory
