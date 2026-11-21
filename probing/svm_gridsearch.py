@@ -50,6 +50,12 @@ def parse_args():
         type=Path,
         default=Path("datasets/eurosat_train_subsets.pkl"),
     )
+    parser.add_argument(
+        "--test-pkl",
+        type=Path,
+        default=Path("datasets/eurosat_test_subset.pkl"),
+        help="Required by the shared split loader; test data is not used for tuning.",
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--kernel", choices=("linear", "rbf"), required=True)
     parser.add_argument("--n-jobs", type=int, default=4)

@@ -78,19 +78,19 @@ select the explicit `SmallStudent` and `LargerStudent` classes, respectively.
 The project protocol requires at least three seeds for `small` and two for
 `large`.
 
-Extract features separately for each seed so the probe can report
+Extract features for all seeds in one command so the probe can report
 seed-to-seed variation:
 
 ```bash
-for size in small_cnn larger_cnn; do
-  if [ "$size" = small_cnn ]; then seeds="42 43 44"; else seeds="42 43"; fi
-  for seed in $seeds; do
-    python3 -m probing.extract_features \
-      --config "checkpoints/row_b_vicreg/$size/seed$seed/vicreg.json" \
-      --output-dir "datasets/features/vicreg/$size/seed$seed"
-  done
-done
+python3 -m probing.extract_features \
+  --config configs/vicreg.json \
+  --student-cnn small \
+  --seeds 42 43 44
 ```
+
+Use `--student-cnn large --seeds 42 43` for the larger variant. For a
+non-default checkpoint location, pass `--checkpoint-root`; `--output-dir`
+sets the common feature-cache root.
 
 The standalone one-run trainer remains available for development smoke runs;
 its architecture is selected by `student_cnn` in the config:

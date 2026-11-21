@@ -12,31 +12,38 @@ from training.train_vicreg import load_config
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description=(
-            "Extract deterministic raw VICReg backbone features for EuroSAT."
-        )
+        description="Extract deterministic VICReg student features for EuroSAT."
     )
     parser.add_argument(
         "--config",
         type=Path,
         default=Path("configs/vicreg.json"),
-        help="VICReg training configuration (default: configs/vicreg.json).",
+        help="Base VICReg configuration or a specific seed's saved configuration.",
+    )
+    parser.add_argument(
+        "--student-cnn",
+        choices=("small", "large"),
+        help="Architecture to extract when using --seeds; defaults to the config.",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        help="Extract these trained seeds from the row-B checkpoint directory.",
+    )
+    parser.add_argument(
+        "--checkpoint-root",
+        type=Path,
+        default=Path("checkpoints/row_b_vicreg"),
+        help="Root containing <size>/seed<seed>/ run folders.",
     )
     parser.add_argument(
         "--checkpoint-path",
         type=Path,
-        help="Backbone checkpoint (defaults to student_backbone.pth in config output_dir).",
+        help="Single-run backbone checkpoint; unavailable with --seeds.",
     )
-    parser.add_argument(
-        "--eurosat-root",
-        type=Path,
-        help="EuroSAT root (defaults to dataset_root in the config).",
-    )
-    parser.add_argument(
-        "--train-pkl",
-        type=Path,
-        help="Training subset indices (defaults to subsets_path in the config).",
-    )
+    parser.add_argument("--eurosat-root", type=Path)
+    parser.add_argument("--train-pkl", type=Path)
     parser.add_argument(
         "--test-pkl",
         type=Path,
@@ -46,52 +53,32 @@ def parse_args():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        help="Feature output directory (defaults to datasets/features/vicreg/<size>/seed<seed>).",
+        help=(
+            "Single-run output directory, or root directory when using --seeds "
+            "(default: datasets/features/vicreg/<size>/seed<seed>)."
+        ),
     )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        help="Extraction batch size (defaults to batch_size in the config).",
-    )
-    parser.add_argument(
-        "--num-workers",
-        type=int,
-        help="DataLoader worker count (defaults to num_workers in the config).",
-    )
+    parser.add_argument("--batch-size", type=int)
+    parser.add_argument("--num-workers", type=int)
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
-    config = load_config(args.config)
+def extract(config, args, output_dir, checkpoint_path):
     dataset_root = args.eurosat_root or config.dataset_root
     train_path = args.train_pkl or config.subsets_path
-    checkpoint_path = args.checkpoint_path or (
-        config.output_dir / "student_backbone.pth"
-    )
-    output_dir = args.output_dir or (
-        Path("datasets/features")
-        / "vicreg"
-        / ("small_cnn" if config.student_cnn == "small" else "larger_cnn")
-        / f"seed{config.seed}"
-    )
-    batch_size = (
-        config.batch_size if args.batch_size is None else args.batch_size
-    )
-    num_workers = (
-        config.num_workers if args.num_workers is None else args.num_workers
-    )
+    batch_size = config.batch_size if args.batch_size is None else args.batch_size
+    num_workers = config.num_workers if args.num_workers is None else args.num_workers
     if batch_size < 1:
-        raise ValueError("batch_size must be positive.")
+        raise ValueError("batch-size must be positive.")
     if num_workers < 0:
-        raise ValueError("num_workers must be nonnegative.")
+        raise ValueError("num-workers must be nonnegative.")
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError(f"Student backbone checkpoint not found: {checkpoint_path}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
-    
-    _, train_indices, test_indices = load_indices(
-        train_path,
-        args.test_pkl)
+
+    _, train_indices, test_indices = load_indices(train_path, args.test_pkl)
     if np.intersect1d(train_indices, test_indices).size:
         raise ValueError("Training and test indices must not overlap.")
     sample_indices = np.concatenate((train_indices, test_indices))
@@ -106,7 +93,7 @@ def main():
         shuffle=False,
         return_labels=True,
         num_workers=num_workers,
-        pin_memory=(device.type == "cuda")
+        pin_memory=(device.type == "cuda"),
     )
 
     print(f"Dataset size: {len(dataloader.dataset)}")
@@ -116,13 +103,12 @@ def main():
     student = build_student(config.student_cnn)
     student.load_weights(checkpoint_path)
     student.to(device)
-    
-    features, labels = student.extract_features(
-        dataloader,
-        device,
-    )
+    features, labels = student.extract_features(dataloader, device)
 
-    if features.shape[0] != len(dataloader.dataset) or labels.shape[0] != len(dataloader.dataset):
+    if (
+        features.shape[0] != len(dataloader.dataset)
+        or labels.shape[0] != len(dataloader.dataset)
+    ):
         raise RuntimeError(
             "Extracted feature and label counts do not match dataset."
         )
@@ -137,8 +123,9 @@ def main():
         "encoder": f"{config.experiment_name}_seed{config.seed}",
         "row": "B",
         "seed": config.seed,
+        "student_cnn": config.student_cnn,
         "checkpoint": str(checkpoint_path),
-        "num_parameters": sum(p.numel() for p in student.parameters()),
+        "num_parameters": sum(parameter.numel() for parameter in student.parameters()),
         "feature_dim": int(features.shape[1]),
         "num_samples": int(features.shape[0]),
         "dataset": "EuroSAT RGB",
@@ -148,11 +135,65 @@ def main():
     with (output_dir / "metadata.json").open("w", encoding="utf-8") as file:
         json.dump(metadata, file, indent=2)
 
-    print("\n--- Feature cache verification ---")
-    print("Raw features shape:", features.shape)
-    print("Labels shape:", labels.shape)
-    print("Indices shape:", sample_indices.shape)
-    print("Saved to:", output_dir.resolve())
+    print(f"Saved features to: {output_dir.resolve()}")
+
+
+def main():
+    args = parse_args()
+    base_config = load_config(args.config)
+
+    if not args.seeds:
+        if args.student_cnn and args.student_cnn != base_config.student_cnn:
+            raise ValueError(
+                "--student-cnn can only override the architecture when --seeds is used."
+            )
+        checkpoint_path = args.checkpoint_path or (
+            base_config.output_dir / "student_backbone.pth"
+        )
+        output_dir = args.output_dir or (
+            Path("datasets/features")
+            / "vicreg"
+            / ("small_cnn" if base_config.student_cnn == "small" else "larger_cnn")
+            / f"seed{base_config.seed}"
+        )
+        extract(base_config, args, output_dir, checkpoint_path)
+        return
+
+    if args.checkpoint_path:
+        raise ValueError(
+            "--checkpoint-path cannot be combined with --seeds; each seed has "
+            "its own student_backbone.pth."
+        )
+    if len(set(args.seeds)) != len(args.seeds) or any(seed < 0 for seed in args.seeds):
+        raise ValueError("--seeds must contain unique nonnegative integers.")
+
+    student_cnn = args.student_cnn or base_config.student_cnn
+    size_name = "small_cnn" if student_cnn == "small" else "larger_cnn"
+    feature_root = args.output_dir or Path("datasets/features/vicreg")
+
+    for seed in args.seeds:
+        run_dir = args.checkpoint_root / size_name / f"seed{seed}"
+        run_config_path = run_dir / "vicreg.json"
+        if run_config_path.is_file():
+            config = load_config(run_config_path)
+            if config.student_cnn != student_cnn or config.seed != seed:
+                raise ValueError(
+                    f"Run config {run_config_path} does not match requested "
+                    f"student={student_cnn}, seed={seed}."
+                )
+        else:
+            config = base_config
+            config.student_cnn = student_cnn
+            config.seed = seed
+            config.output_dir = run_dir
+
+        print(f"\nExtracting row-B features: student_cnn={student_cnn}, seed={seed}")
+        extract(
+            config,
+            args,
+            output_dir=feature_root / size_name / f"seed{seed}",
+            checkpoint_path=run_dir / "student_backbone.pth",
+        )
 
 
 if __name__ == "__main__":
