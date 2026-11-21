@@ -144,11 +144,53 @@ python3 -m probing.svm_evaluate \
 `probing.svm_evaluate` supports both `linear` and `rbf` parameter files and
 reports test accuracy at 1%, 10%, 50%, and 100% of the labeled training set,
 for each draw in the training-subset pickle. It writes per-draw results and a
-mean/std summary by fraction, with the feature-cache directory name identifying
-the encoder in the output filename. Run it once per encoder with the same
-parameter file selected on row B; do not tune on test data or separately for
-each encoder. Use the JSON file produced by `svm_gridsearch.py` for the matching
-kernel. Run `python3 -m probing.svm_evaluate --help` for the evaluator options.
+mean/std summary by `(encoder, probe, fraction)`. The summary includes encoder
+parameter count and inference-cost fields. Parameter counts and cost metadata
+are read from `metadata.json` in the feature cache when present; they can also
+be supplied with `--num-parameters`, `--latency-ms`, `--device`, and
+`--batch-size`. Run it once per encoder with the same parameter file selected on
+row B; do not tune on test data or separately for each encoder. Use the JSON
+file produced by `svm_gridsearch.py` for the matching kernel. Run
+`python3 -m probing.svm_evaluate --help` for the evaluator options.
+
+## SVM Label-Efficiency Curve
+The SVM evaluator automatically combines summary CSVs for the selected kernel
+and generates a log-scale curve after each run:
+
+```bash
+python3 -m probing.svm_evaluate \
+  --features-dir datasets/features/vicreg_width_1 \
+  --params runs/probes/svm_gridsearch_linear.json \
+  --output-dir runs/probes
+```
+
+Use the RBF parameter JSON instead to generate the RBF-SVM curve. Each output
+directory gets kernel-specific files such as
+`label_efficiency/label_efficiency_linear_curves.png` or
+`label_efficiency/label_efficiency_rbf_curves.png`. Override the plot location
+with `--plot-dir`, or disable plotting with `--no-plot`.
+
+The standalone `probing.plot_label_efficiency` script also supports
+`--kernel linear` or `--kernel rbf`.
+
+## Representation Diagnostics
+Run the Section 3.7 diagnostics on the held-out test features for every
+encoder. Repeat `--features-dir` once per cache:
+
+```bash
+python3 -m probing.representation_diagnostics \
+  --features-dir datasets/features/vicreg_width_1 \
+  --features-dir datasets/features/dino_vits16 \
+  --output-dir runs/probes/representation_diagnostics
+```
+
+The script uses the same held-out test indices for all encoders, L2-normalizes
+the cached features, and runs k-means with one cluster per test class. It saves
+NMI and ARI in `representation_metrics.csv`, t-SNE coordinates in
+`tsne_coordinates.csv`, and a comparable panel in `tsne_projections.png`.
+All encoders use the same t-SNE perplexity and random seed; override them with
+`--perplexity` and `--random-state` if needed. Run
+`python3 -m probing.representation_diagnostics --help` for all options.
 
 ## DataLoader Smoke Test
 Build the VICReg, distillation, labeled-training, and final-test data loaders
