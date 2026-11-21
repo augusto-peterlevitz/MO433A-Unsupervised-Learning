@@ -7,7 +7,7 @@ import pandas as pd
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Plot linear- or RBF-SVM label-efficiency curves from probe summaries."
+        description="Plot SVM or KNN label-efficiency curves from probe summaries."
     )
     parser.add_argument(
         "--summary",
@@ -20,13 +20,13 @@ def parse_args():
         "--input-dir",
         type=Path,
         default=Path("runs/probes"),
-        help="Directory searched for *_<kernel>_summary.csv files.",
+        help="Directory searched for probe summary CSV files.",
     )
     parser.add_argument(
-        "--kernel",
-        choices=("linear", "rbf"),
+        "--probe",
+        choices=("linear", "rbf", "knn"),
         default="linear",
-        help="SVM kernel to plot.",
+        help="Probe to plot.",
     )
     parser.add_argument(
         "--output-dir",
@@ -39,10 +39,12 @@ def parse_args():
 def find_summaries(args):
     if args.summaries:
         return [path for path in args.summaries if path.exists()]
-    return sorted(args.input_dir.glob(f"*_{args.kernel}_summary.csv"))
+    if args.probe == "knn":
+        return sorted(args.input_dir.glob("knn_evaluation_*_summary.csv"))
+    return sorted(args.input_dir.glob(f"svm_evaluation_*_{args.probe}_summary.csv"))
 
 
-def load_results(paths, kernel="linear"):
+def load_results(paths, probe="linear"):
     frames = []
     for path in paths:
         frame = pd.read_csv(path)
@@ -51,18 +53,16 @@ def load_results(paths, kernel="linear"):
         if missing:
             raise ValueError(f"{path} is missing columns: {sorted(missing)}")
 
-        probe = f"{kernel}_svm"
+        probe_name = "knn" if probe == "knn" else f"{probe}_svm"
         if "probe" in frame.columns:
-            frame = frame[frame["probe"] == probe]
-        elif f"_{kernel}_summary" not in path.name:
-            continue
+            frame = frame[frame["probe"] == probe_name]
 
         frame = frame.copy()
         frame["source"] = path.name
         frames.append(frame)
 
     if not frames:
-        raise ValueError(f"No {kernel.upper()}-SVM summary CSV files found.")
+        raise ValueError(f"No {probe.upper()} summary CSV files found.")
 
     results = pd.concat(frames, ignore_index=True)
     results["fraction"] = results["fraction"].astype(float)
@@ -71,7 +71,7 @@ def load_results(paths, kernel="linear"):
     return results.sort_values(["encoder", "fraction"])
 
 
-def plot_results(results, output_path, kernel="linear"):
+def plot_results(results, output_path, probe="linear"):
     fig, ax = plt.subplots(figsize=(8, 5))
 
     for encoder, encoder_results in results.groupby("encoder", sort=True):
@@ -90,8 +90,9 @@ def plot_results(results, output_path, kernel="linear"):
     ax.set_xticks(fractions)
     ax.set_xticklabels([f"{fraction:.0%}" for fraction in fractions])
     ax.set_xlabel("Labeled training fraction")
-    ax.set_ylabel(f"{kernel.upper()}-SVM test accuracy")
-    ax.set_title(f"{kernel.upper()}-SVM label-efficiency curves")
+    probe_label = "KNN" if probe == "knn" else f"{probe.upper()}-SVM"
+    ax.set_ylabel(f"{probe_label} test accuracy")
+    ax.set_title(f"{probe_label} label-efficiency curves")
     ax.grid(True, which="both", linestyle="--", alpha=0.4)
     ax.legend(title="Encoder")
     fig.tight_layout()
@@ -104,18 +105,18 @@ def main():
     paths = find_summaries(args)
     if not paths:
         raise SystemExit(
-            f"No {args.kernel.upper()}-SVM summary CSVs found in "
+            f"No {args.probe.upper()} summary CSVs found in "
             f"{args.input_dir} or --summary."
         )
 
-    results = load_results(paths, args.kernel)
+    results = load_results(paths, args.probe)
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    table_path = args.output_dir / f"label_efficiency_{args.kernel}_summary.csv"
+    table_path = args.output_dir / f"label_efficiency_{args.probe}_summary.csv"
     results.to_csv(table_path, index=False)
 
-    figure_path = args.output_dir / f"label_efficiency_{args.kernel}_curves.png"
-    plot_results(results, figure_path, args.kernel)
+    figure_path = args.output_dir / f"label_efficiency_{args.probe}_curves.png"
+    plot_results(results, figure_path, args.probe)
 
     print(f"Combined label-efficiency table saved to {table_path}")
     print(f"Label-efficiency figure saved to {figure_path}")
