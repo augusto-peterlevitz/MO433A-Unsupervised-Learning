@@ -18,7 +18,7 @@ from lightly.loss import VICRegLoss
 from lightly.transforms.vicreg_transform import VICRegTransform
 from tqdm import tqdm
 
-from models.student_cnn import StudentCNN
+from models.student_cnn import build_student
 from models.vicreg import VICRegModel
 from data.eurosat import EuroSAT
 
@@ -28,14 +28,14 @@ class TrainingConfig:
     experiment_name: str = "vicreg_training"
     dataset_root: Path = Path("datasets/EuroSAT_RGB")
     subsets_path: Path = Path("datasets/eurosat_train_subsets.pkl")
-    width_mult: float = 1.0
+    student_cnn: str = "large"
     batch_size: int = 64
     epochs: int = 30
     learning_rate: float = 1e-3
     weight_decay: float = 1e-4
     num_workers: int = 8
     seed: int = 42
-    output_dir: Path = Path("checkpoints/vicreg_width_1.0")
+    output_dir: Path = Path("checkpoints/vicreg")
 
     def validate(self):
         if (
@@ -51,8 +51,10 @@ class TrainingConfig:
                 "epochs and batch_size must be positive; "
                 "num_workers must be nonnegative"
             )
-        if self.width_mult <= 0 or self.learning_rate <= 0:
-            raise ValueError("width_mult and learning_rate must be positive")
+        if self.student_cnn not in {"small", "large"}:
+            raise ValueError("student_cnn must be 'small' or 'large'")
+        if self.learning_rate <= 0:
+            raise ValueError("learning_rate must be positive")
         if self.weight_decay < 0:
             raise ValueError("weight_decay must be nonnegative")
 
@@ -72,7 +74,7 @@ def load_config(path):
     path_fields = {"dataset_root", "subsets_path", "output_dir"}
     string_fields = {"experiment_name"}
     integer_fields = {"batch_size", "epochs", "num_workers", "seed"}
-    float_fields = {"width_mult", "learning_rate", "weight_decay"}
+    float_fields = {"learning_rate", "weight_decay"}
     for name, value in values.items():
         if name in path_fields:
             if not isinstance(value, str):
@@ -140,7 +142,7 @@ def train(config):
         drop_last=True,
     )
 
-    backbone = StudentCNN(width_mult=config.width_mult)
+    backbone = build_student(config.student_cnn)
     model = VICRegModel(backbone).to(device)
 
     print(f"Student feature dimension: {backbone.feature_dim}")
@@ -262,7 +264,7 @@ def train(config):
                 "scheduler_state_dict": scheduler.state_dict(),
                 "scaler_state_dict": scaler.state_dict(),
                 "loss": average_loss,
-                "width_mult": config.width_mult,
+                "student_cnn": config.student_cnn,
             }
             torch.save(
                 checkpoint,

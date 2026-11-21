@@ -45,43 +45,58 @@ All arguments are optional. Defaults are `datasets/EuroSAT_RGB` for the dataset,
 `datasets/features/dino_vits16` for output, a batch size of `64`, and `4`
 data-loading workers.
 
-## Supervised Student CNN Training
-Train the student CNN with a linear classification head and a stratified
-train/validation split:
+## Row B: VICReg Student Training
+Run the direct-training baseline for one named variant of the project's
+`StudentCNN` architecture. Specify all seeds for that variant with `--seeds`:
 
 ```bash
 python3 -m scripts.train_student_cnn \
-  --eurosat-root datasets/EuroSAT_RGB \
-  --epochs 30 \
-  --batch-size 64 \
-  --output-dir runs/student_cnn
+  --config configs/vicreg.json \
+  --student-cnn small \
+  --seeds 42 43 44 \
+  --output-dir checkpoints/row_b_vicreg
 ```
 
-The script logs train/validation loss and accuracy for each epoch to
-`runs/student_cnn/metrics.csv` and saves the checkpoint with the best
-validation accuracy to `runs/student_cnn/best_model.pt`. Use
-`python3 -m scripts.train_student_cnn --help` to see all options.
+This runs three seeds for the smaller variant. For the larger variant, run:
 
-## VICReg Training
-Train the student backbone with VICReg using the settings in
-`configs/vicreg.json`:
+```bash
+python3 -m scripts.train_student_cnn \
+  --config configs/vicreg.json \
+  --student-cnn large \
+  --seeds 42 43 \
+  --output-dir checkpoints/row_b_vicreg
+```
+
+Both use VICReg's two-view augmentation and loss, train on the unlabeled
+training split, and use the `StudentCNN` backbone from `models/student_cnn.py`
+with no classifier head. Hyperparameters such as epochs, batch size, learning
+rate, and data paths come from the base config. Each run saves its config,
+checkpoint, backbone weights, and TensorBoard logs under
+`checkpoints/row_b_vicreg/{small_cnn,larger_cnn}/seed<seed>/`. Use
+`--student-cnn small` and `--student-cnn large` in separate invocations. These
+select the explicit `SmallStudent` and `LargerStudent` classes, respectively.
+The project protocol requires at least three seeds for `small` and two for
+`large`.
+
+Extract features separately for each seed so the probe can report
+seed-to-seed variation:
+
+```bash
+for size in small_cnn larger_cnn; do
+  if [ "$size" = small_cnn ]; then seeds="42 43 44"; else seeds="42 43"; fi
+  for seed in $seeds; do
+    python3 -m probing.extract_features \
+      --config "checkpoints/row_b_vicreg/$size/seed$seed/vicreg.json" \
+      --output-dir "datasets/features/vicreg/$size/seed$seed"
+  done
+done
+```
+
+The standalone one-run trainer remains available for development smoke runs;
+its architecture is selected by `student_cnn` in the config:
 
 ```bash
 python3 -m training.train_vicreg --config configs/vicreg.json
-```
-
-Pass `--config path/to/config.json` to load a different JSON configuration.
-The configuration contains an `experiment_name` (default `vicreg_training`),
-dataset and subset paths, model width, training hyperparameters, random seed,
-worker count, and output directory. The resolved configuration is saved as
-`vicreg.json` in that output directory along with `last_checkpoint.pth` and
-`student_backbone.pth`. Batch and epoch metrics are logged to a uniquely named
-TensorBoard run directory under `tensorboard/`, using the experiment name and
-start date/time. The name and timestamp are also recorded in TensorBoard. View
-all runs with:
-
-```bash
-tensorboard --logdir checkpoints/vicreg_width_1.0/tensorboard
 ```
 
 ## VICReg Feature Extraction
@@ -93,18 +108,19 @@ python3 -m probing.extract_features
 ```
 
 The default config is `configs/vicreg.json`. The script reads the dataset root,
-training-subset pickle, model width, batch size, worker count, and checkpoint
+training-subset pickle, model architecture, batch size, worker count, and checkpoint
 location from that config. It uses `datasets/eurosat_test_subset.pkl` for the
 test indices, loads `student_backbone.pth` from the configured output
 directory, and writes the cache to
-`datasets/features/vicreg_width_<width_mult>`.
+`datasets/features/vicreg/<small_cnn|larger_cnn>/seed<seed>`.
 
 To override paths or extraction settings:
 
 ```bash
 python3 -m probing.extract_features \
-  --checkpoint-path checkpoints/vicreg_width_1.0/student_backbone.pth \
-  --output-dir datasets/features/vicreg_width_1 \
+  --config checkpoints/row_b_vicreg/small_cnn/seed42/vicreg.json \
+  --checkpoint-path checkpoints/row_b_vicreg/small_cnn/seed42/student_backbone.pth \
+  --output-dir datasets/features/vicreg/small_cnn/seed42 \
   --batch-size 64 \
   --num-workers 4
 ```
@@ -125,22 +141,22 @@ python3 -m scripts.random_baseline \
   --eurosat-root datasets/EuroSAT_RGB \
   --train-pkl datasets/eurosat_train_subsets.pkl \
   --test-pkl datasets/eurosat_test_subset.pkl \
-  --width-mults 0.5 1.0 \
+  --student-cnn small \
   --seeds 42 43 44 \
   --batch-size 64 \
   --num-workers 4
 ```
 
-This creates one deterministic feature cache per `(width, seed)` under
+This creates one deterministic feature cache per `(student variant, seed)` under
 `datasets/features/random_baseline/{small_cnn,larger_cnn}/seed<seed>`. The two
-widths are assigned to `small_cnn` and `larger_cnn` by ascending width. The
-models are randomly
+architectures are selected with `--student-cnn small` and `--student-cnn large`.
+The models are randomly
 initialized, receive no pretraining, and are kept in `eval()` mode during
 feature extraction. Keeping BatchNorm in `eval()` uses its default running
 statistics and avoids making the extracted features depend on the extraction
-batch composition. The default command covers two student widths and three
-seeds; for the large-size protocol, run the larger width with at least two
-seeds and report individual runs as well as mean and standard deviation.
+batch composition. Run a separate command with `--student-cnn large --seeds 42 43` for the larger
+variant. Preserve per-seed results and report individual runs for the two-seed
+variant.
 
 ## SVM Probing and Hyperparameter Tuning
 Tune the SVM parameters once on the direct-training (row B) VICReg features,
@@ -149,7 +165,7 @@ stratified CV and searches a small C/gamma grid for the RBF kernel:
 
 ```bash
 python3 -m probing.svm_gridsearch \
-  --features-dir datasets/features/vicreg_width_1 \
+  --features-dir datasets/features/vicreg/small_cnn/seed42 \
   --kernel rbf \
   --output-dir runs/probes
 ```
@@ -166,7 +182,7 @@ python3 -m probing.svm_evaluate \
     datasets/features/random_baseline/small_cnn/seed42 \
     datasets/features/random_baseline/small_cnn/seed43 \
     datasets/features/random_baseline/small_cnn/seed44 \
-  --params runs/probes/svm_gridsearch/vicreg_width_1/svm_gridsearch_rbf.json \
+  --params runs/probes/svm_gridsearch/vicreg_small_cnn/seed42/svm_gridsearch_rbf.json \
   --output-dir runs/probes
 ```
 
@@ -194,7 +210,7 @@ python3 -m probing.svm_evaluate \
     datasets/features/random_baseline/small_cnn/seed42 \
     datasets/features/random_baseline/small_cnn/seed43 \
     datasets/features/random_baseline/small_cnn/seed44 \
-  --params runs/probes/svm_gridsearch/vicreg_width_1/svm_gridsearch_linear.json \
+  --params runs/probes/svm_gridsearch/vicreg_small_cnn/seed42/svm_gridsearch_linear.json \
   --output-dir runs/probes
 ```
 
@@ -216,7 +232,7 @@ to generate a log-scale curve from those summaries:
 
 ```bash
 python3 -m probing.knn_evaluate \
-  --features-dir datasets/features/vicreg_width_1 \
+  --features-dir datasets/features/vicreg/small_cnn/seed42 \
   --output-dir runs/probes
 ```
 
@@ -248,7 +264,7 @@ encoder. Repeat `--features-dir` once per cache:
 
 ```bash
 python3 -m probing.representation_diagnostics \
-  --features-dir datasets/features/vicreg_width_1 \
+  --features-dir datasets/features/vicreg/small_cnn/seed42 \
   --features-dir datasets/features/dino_vits16 \
   --output-dir runs/probes/representation_diagnostics
 ```
