@@ -9,8 +9,30 @@ from sklearn.neighbors import KNeighborsClassifier
 from data.dataloaders import load_indices, get_data
 import pandas as pd
 from tqdm import tqdm
+from models.utils import load_encoder_cost
 
-LABEL_FRACTIONS = (0.01, 0.10, 0.50, 1.00)
+
+# def load_encoder_cost(feature_dir, args):
+#     metadata = {}
+#     metadata_path = feature_dir / "metadata.json"
+#     if metadata_path.exists():
+#         with metadata_path.open(encoding="utf-8") as file:
+#             metadata = json.load(file)
+
+#     num_parameters = args.num_parameters
+#     if num_parameters is None:
+#         num_parameters = metadata.get("num_parameters")
+
+#     latency_ms = args.latency_ms
+#     if latency_ms is None:
+#         latency_ms = metadata.get("latency_ms")
+
+#     return {
+#         "num_parameters": num_parameters,
+#         "inference_latency_ms": latency_ms,
+#         "device": args.device or metadata.get("device"),
+#         "batch_size": args.batch_size or metadata.get("batch_size") or 1,
+#     }
 
 
 def parse_args():
@@ -25,7 +47,6 @@ def parse_args():
     parser.add_argument("--min-neighbors", type=int, default=20)
     parser.add_argument("--n-jobs", type=int, default=4)
     parser.add_argument("--features-dir", dest="feature_dir", type=Path, required=True)
-
     return parser.parse_args()
 
 
@@ -70,10 +91,23 @@ def main():
 
     results = evaluate(training_pipeline, train_subsets, x_test, y_test, args.feature_dir)
     encoder_name = args.feature_dir.name
+    cost = load_encoder_cost(args.feature_dir)
+    results.insert(0, "probe", "knn")
     results.insert(0, "encoder", encoder_name)
+    for column, value in cost.items():
+        results[column] = value
+
     summary = (
-        results.groupby("fraction")["accuracy"]
-        .agg(mean_accuracy="mean", std_accuracy="std", draws="count")
+        results.groupby(["encoder", "probe", "fraction"], dropna=False)
+        .agg(
+            mean_accuracy=("accuracy", "mean"),
+            std_accuracy=("accuracy", "std"),
+            draws=("accuracy", "count"),
+            num_parameters=("num_parameters", "first"),
+            inference_latency_ms=("inference_latency_ms", "first"),
+            device=("device", "first"),
+            batch_size=("batch_size", "first"),
+        )
         .reset_index()
     )
 

@@ -1,4 +1,5 @@
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -128,6 +129,19 @@ def main():
     np.save(output_dir / "features.npy", features)
     np.save(output_dir / "labels.npy", labels)
     np.save(output_dir / "indices.npy", sample_indices)
+
+    metadata = {
+        "model": f"VICReg student width {config.width_mult:g}",
+        "checkpoint": str(checkpoint_path),
+        "num_parameters": sum(p.numel() for p in student.parameters()),
+        "feature_dim": int(features.shape[1]),
+        "num_samples": int(features.shape[0]),
+        "dataset": "EuroSAT RGB",
+        "batch_size": batch_size,
+        "device": str(device),
+    }
+    with (output_dir / "metadata.json").open("w", encoding="utf-8") as file:
+        json.dump(metadata, file, indent=2)
 
     print("\n--- Feature cache verification ---")
     print("Raw features shape:", features.shape)
