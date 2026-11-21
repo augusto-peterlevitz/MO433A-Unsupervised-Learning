@@ -47,7 +47,15 @@ def find_summaries(args):
             if "knn_evaluation" in path.parts
         )
         return sorted(summaries)
-    return sorted(args.input_dir.glob(f"svm_evaluation_*_{args.probe}_summary.csv"))
+    summaries = set(
+        args.input_dir.rglob(f"svm_evaluation_*_{args.probe}_summary.csv")
+    )
+    summaries.update(
+        path
+        for path in args.input_dir.rglob("summary.csv")
+        if "svm_evaluation" in path.parts and args.probe in path.parts
+    )
+    return sorted(summaries)
 
 
 def load_results(paths, probe="linear"):

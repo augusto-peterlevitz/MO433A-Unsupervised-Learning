@@ -154,46 +154,58 @@ python3 -m probing.svm_gridsearch \
   --output-dir runs/probes
 ```
 
-This saves `svm_gridsearch_rbf.json` in `runs/probes`. Repeat with
-`--kernel linear` for the linear SVM. Then evaluate the fixed
-parameters on the same label subsets for each encoder; repeat `--features`
-for every encoder cache:
+The grid search uses one designated row-B cache and saves the fixed parameters
+under `runs/probes/svm_gridsearch/<cache-name>/` (including a seed directory
+when the cache identifies one). Repeat with `--kernel linear` for the linear
+SVM. Use the same parameter file for every seed and encoder; do not tune
+separately for each seed.
 
 ```bash
 python3 -m probing.svm_evaluate \
-  --features-dir datasets/features/vicreg_width_1 \
-  --params runs/probes/svm_gridsearch_rbf.json \
+  --features-dir \
+    datasets/features/random_baseline/small_cnn/seed42 \
+    datasets/features/random_baseline/small_cnn/seed43 \
+    datasets/features/random_baseline/small_cnn/seed44 \
+  --params runs/probes/svm_gridsearch/vicreg_width_1/svm_gridsearch_rbf.json \
   --output-dir runs/probes
 ```
 
 `probing.svm_evaluate` supports both `linear` and `rbf` parameter files and
 reports test accuracy at 1%, 10%, 50%, and 100% of the labeled training set,
-for each draw in the training-subset pickle. It writes per-draw results and a
-mean/std summary by `(encoder, probe, fraction)`. The summary includes encoder
-parameter count and inference-cost fields. Parameter counts and cost metadata
-are read from `metadata.json` in the feature cache when present; they can also
-be supplied with `--num-parameters`, `--latency-ms`, `--device`, and
-`--batch-size`. Run it once per encoder with the same parameter file selected on
-row B; do not tune on test data or separately for each encoder. Use the JSON
-file produced by `svm_gridsearch.py` for the matching kernel. Run
+for each draw in the training-subset pickle. It saves per-seed results and
+summaries under `runs/probes/svm_evaluation/<encoder-family>/<seed>/<kernel>/`
+and pooled seed/draw results under
+`runs/probes/svm_evaluation/<encoder-family>/aggregate/<kernel>/`. The pooled
+summary reports the mean and standard deviation across seeds and labeled
+subset draws. The repeated identical 100% draws are counted once per seed in
+the pooled summary. Parameter counts and cost metadata are read from
+`metadata.json` when present. Do not tune on test data or separately for each
+seed or encoder. Use the JSON file produced by `svm_gridsearch.py` for the
+matching kernel. Run
 `python3 -m probing.svm_evaluate --help` for the evaluator options.
 
 ## SVM Label-Efficiency Curve
-The SVM evaluator automatically combines summary CSVs for the selected kernel
-and generates a log-scale curve after each run:
+After evaluating all desired seeds, create a log-scale curve from the nested
+per-seed and aggregate summaries:
 
 ```bash
 python3 -m probing.svm_evaluate \
-  --features-dir datasets/features/vicreg_width_1 \
-  --params runs/probes/svm_gridsearch_linear.json \
+  --features-dir \
+    datasets/features/random_baseline/small_cnn/seed42 \
+    datasets/features/random_baseline/small_cnn/seed43 \
+    datasets/features/random_baseline/small_cnn/seed44 \
+  --params runs/probes/svm_gridsearch/vicreg_width_1/svm_gridsearch_linear.json \
   --output-dir runs/probes
 ```
 
-Use the RBF parameter JSON instead to generate the RBF-SVM curve. Each output
-directory gets kernel-specific files such as
-`label_efficiency/label_efficiency_linear_curves.png` or
-`label_efficiency/label_efficiency_rbf_curves.png`. Override the plot location
-with `--plot-dir`, or disable plotting with `--no-plot`.
+Use the RBF parameter JSON in the evaluation command instead for RBF results.
+Plot the nested summaries with:
+
+```bash
+python3 -m probing.plot_label_efficiency \
+  --probe linear \
+  --input-dir runs/probes/svm_evaluation
+```
 
 The standalone `probing.plot_label_efficiency` script supports
 `--probe linear`, `--probe rbf`, or `--probe knn`.
