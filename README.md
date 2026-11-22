@@ -132,8 +132,16 @@ freezes the DINO teacher, gives the teacher and student the same VICReg
 augmented view (student at 64px, teacher resized to 224px), and minimizes cosine
 distance between the teacher features and an MLP projection of the student
 features. Labels are ignored. It saves the student backbone, per-epoch loss,
-configuration, and teacher-forward timing under
-`checkpoints/distillation/{small_cnn,larger_cnn}/seed<seed>/`.
+configuration, teacher-forward timing, and TensorBoard event logs under
+`checkpoints/distillation/{small_cnn,larger_cnn}/seed<seed>/`. Open the logs
+for one run with:
+
+```bash
+tensorboard --logdir checkpoints/distillation/small_cnn/seed42/tensorboard
+```
+
+TensorBoard records batch and epoch distillation loss, learning rate, and epoch
+duration. Each seed has its own timestamped run directory under `tensorboard/`.
 
 Extract all seeds from the distilled row with:
 

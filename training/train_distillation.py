@@ -4,7 +4,9 @@ import json
 import pickle
 import random
 import time
+from contextlib import closing
 from dataclasses import asdict, replace
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from lightly.transforms.vicreg_transform import VICRegTransform
 from torch.utils.data import DataLoader, Subset
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from data.eurosat import EuroSAT
@@ -164,8 +167,12 @@ def train_one(config, teacher, teacher_checkpoint):
     config.output_dir.mkdir(parents=True, exist_ok=True)
     save_config(config, config.output_dir / "vicreg.json")
     metrics_path = config.output_dir / "metrics.csv"
+    run_timestamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
+    run_name = f"distillation_{config.student_cnn}_seed{config.seed}_{run_timestamp}"
+    tensorboard_dir = config.output_dir / "tensorboard" / run_name
     teacher_timing_events = []
     teacher_forward_seconds = 0.0
+    global_step = 0
     parameter_count = sum(parameter.numel() for parameter in student.parameters())
     print(
         f"Row C: student={config.student_cnn}, seed={config.seed}, "
@@ -173,7 +180,15 @@ def train_one(config, teacher, teacher_checkpoint):
         f"images={len(train_dataset)}, batches/epoch={len(train_loader)}"
     )
 
-    with metrics_path.open("w", newline="", encoding="utf-8") as file:
+    with closing(SummaryWriter(log_dir=str(tensorboard_dir))) as summary_writer, \
+            metrics_path.open(
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as file:
+        summary_writer.add_text("experiment/approach", config.approach, 0)
+        summary_writer.add_text("experiment/student_cnn", config.student_cnn, 0)
+        summary_writer.add_text("experiment/seed", str(config.seed), 0)
         writer = csv.DictWriter(
             file,
             fieldnames=("epoch", "loss", "learning_rate", "epoch_seconds"),
@@ -245,7 +260,14 @@ def train_one(config, teacher, teacher_checkpoint):
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
-                total_loss += float(loss.detach())
+                batch_loss = float(loss.detach())
+                total_loss += batch_loss
+                global_step += 1
+                summary_writer.add_scalar(
+                    "train/batch_loss",
+                    batch_loss,
+                    global_step,
+                )
 
             average_loss = total_loss / len(train_loader)
             scheduler.step()
@@ -258,6 +280,10 @@ def train_one(config, teacher, teacher_checkpoint):
                 "epoch_seconds": epoch_seconds,
             })
             file.flush()
+            summary_writer.add_scalar("train/epoch_loss", average_loss, epoch)
+            summary_writer.add_scalar("train/learning_rate", learning_rate, epoch)
+            summary_writer.add_scalar("train/epoch_seconds", epoch_seconds, epoch)
+            summary_writer.flush()
             print(
                 f"Epoch {epoch:03d}/{config.epochs} "
                 f"loss={average_loss:.5f} lr={learning_rate:.6g} "
@@ -321,6 +347,7 @@ def train_one(config, teacher, teacher_checkpoint):
         file.write("\n")
 
     print(f"Saved student backbone to {backbone_path}")
+    print(f"TensorBoard logs saved to {tensorboard_dir}")
     time_unit = "GPU-hours" if device.type == "cuda" else "CPU-hours"
     print(
         f"Teacher forward time: {teacher_forward_seconds:.1f}s "
