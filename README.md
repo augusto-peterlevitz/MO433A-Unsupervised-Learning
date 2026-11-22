@@ -491,54 +491,29 @@ All encoders use the same t-SNE perplexity and random seed; override them with
 ## Makefile experiment pipeline
 The repository provides Make targets that run the project steps while preserving
 the `outputs/checkpoints`, `outputs/features`, and `outputs/runs/probes` layout.
-All existing module commands above remain valid. Run `make help` to list them.
+
+
+For running all experiments at once, follow these steps:
+
+1. Create and activate conda environment (if not created)
+
+  ```bash
+  conda create -n mo433 python=3.8.10
+  conda activate mo433
+  python3 -m pip install --upgrade pip
+  python3 -m pip install -r requirements.txt
+  ```
+
+2. Create the subsets (if not created):
+
+ ```
+ make generate-subsets
+ ```
+
+3. Run all the projects experiments at once:
 
 ```bash
-make generate-subsets                 # Generate EuroSAT labeled train/test subsets
-make random-baseline                  # Train the row-A random baselines
-make vicreg-small                     # Train small-student VICReg (row B)
-make vicreg-large                     # Train large-student VICReg (row B)
-make train-vicreg                     # Train both VICReg student sizes
-make distillation-small               # Train small MLP-distilled student (row C)
-make distillation-large               # Train large MLP-distilled student (row C)
-make train-distillation               # Train both MLP-distilled student sizes
-make distillation-small-linear        # Train small linear-projector ablation
-make distillation-large-linear        # Train large linear-projector ablation
-make distillation-ablation            # Train both linear-projector sizes
-make teacher-features                 # Extract frozen DINO teacher features (row D)
-make baseline-features                # Extract row-A random-baseline features
-make vicreg-features                  # Extract VICReg features
-make distillation-features            # Extract MLP-distillation features
-make distillation-linear-features     # Extract linear-projector features
-make svm-gridsearch-rbf               # Tune RBF-SVM parameters
-make svm-gridsearch-linear            # Tune linear-SVM parameters
-make svm-gridsearch                   # Tune both linear and RBF parameters
-make knn-probes                       # Run KNN probes for every encoder
-make svm-probes                       # Run RBF-SVM probes for every encoder
-make probes                           # Run both KNN and SVM probes
-make teacher-probes                   # Probe the frozen teacher with KNN and SVM
-make diagnostics                      # Run k-means and t-SNE diagnostics
-make plot-label-efficiency-svm-linear # Plot the linear-SVM label-efficiency curve
-make plot-label-efficiency-svm-rbf    # Plot the RBF-SVM label-efficiency curve
-make plot-label-efficiency-knn        # Plot the KNN label-efficiency curve
-make plots                            # Generate all label-efficiency plots
-make pipeline                         # Run the complete experiment pipeline
-make clean                            # Remove generated output directories
+make run-experiments
 ```
 
-The Makefile keeps the required seed protocol as defaults: three seeds
-(`42 43 44`) for the small student and two (`42 43`) for the large student.
-Override them for development or targeted runs:
-
-```bash
-make vicreg-small SEEDS_SMALL="42"
-make distillation-large SEEDS_LARGE="42 43"
-make probes
-```
-
-Targets are independent so they can be rerun without executing unrelated work.
-`make pipeline` generates the labeled subsets, extracts row-D features, trains
-rows A-C (including the linear-projector ablation), extracts every feature cache,
-tunes and runs SVM/KNN probes, probes the teacher, runs representation diagnostics,
-and plots all label-efficiency curves. Training is checkpoint-dependent for
-feature extraction: run the corresponding training target before extraction.
+Targets are independent so they can be rerun without executing unrelated work.  Run `make help` to list them. All existing module commands of the sections above remain valid.
