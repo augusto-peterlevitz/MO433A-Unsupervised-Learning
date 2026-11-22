@@ -1,9 +1,9 @@
 # MO433A-Unsupervised-Learning
 
-## Environment setup
+## Environment setup (optional)
 
-Create and activate the `mo433` Conda environment, then install the project
-requirements with pip:
+Conda is optional. To use it directly on your host, create and activate the
+`mo433` environment, then install the project requirements with pip:
 
 ```bash
 conda create -n mo433 python=3.8.10
@@ -11,6 +11,35 @@ conda activate mo433
 python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
+
+Alternatively, build the Docker image to use the project without creating a
+host Conda environment:
+
+```bash
+docker build -t mo433-unsupervised .
+```
+
+Run an interactive container with the repository mounted so downloaded datasets
+and generated outputs persist on the host:
+
+```bash
+docker run --rm -it \
+  -v "$PWD:/workspace" \
+  -w /workspace \
+  mo433-unsupervised
+```
+
+Inside the container, download the dataset and DINO weights and run the
+experiment Make targets as usual:
+
+```bash
+make download-assets
+make generate-subsets
+make run-experiments
+```
+
+For GPU training, pass `--gpus all` to `docker run` and ensure the host has
+NVIDIA Container Toolkit installed. CPU execution remains available without it.
 
 ## Download required assets
 Download both the EuroSAT RGB dataset and the pretrained DINO ViT-S/16 weights
