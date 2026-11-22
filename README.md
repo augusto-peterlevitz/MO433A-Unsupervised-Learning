@@ -257,16 +257,26 @@ seed aggregates separate:
 
 ```bash
 python3 -m evaluation.knn_evaluate \
-  --features-dir \
-    datasets/features/vicreg/small_cnn/seed42 \
-    datasets/features/vicreg/small_cnn/seed43 \
-    datasets/features/vicreg/small_cnn/seed44 \
-    datasets/features/distillation/projector_mlp/small_cnn/seed42 \
-    datasets/features/distillation/projector_mlp/small_cnn/seed43 \
-    datasets/features/distillation/projector_mlp/small_cnn/seed44 \
-    datasets/features/distillation/projector_linear/small_cnn/seed42 \
-    datasets/features/distillation/projector_linear/small_cnn/seed43 \
-    datasets/features/distillation/projector_linear/small_cnn/seed44 \
+  --feature-dir datasets/features \
+  --approach vicreg \
+  --student-cnn small \
+  --seeds 42 43 44 \
+  --output-dir runs/probes
+
+python3 -m evaluation.knn_evaluate \
+  --feature-dir datasets/features \
+  --approach distillation \
+  --student-cnn small \
+  --projector-type mlp \
+  --seeds 42 43 44 \
+  --output-dir runs/probes
+
+python3 -m evaluation.knn_evaluate \
+  --feature-dir datasets/features \
+  --approach distillation \
+  --student-cnn small \
+  --projector-type linear \
+  --seeds 42 43 44 \
   --output-dir runs/probes
 ```
 
@@ -274,16 +284,28 @@ For SVM, pass the same VICReg-tuned parameter file:
 
 ```bash
 python3 -m evaluation.svm_evaluate \
-  --features-dir \
-    datasets/features/vicreg/small_cnn/seed42 \
-    datasets/features/vicreg/small_cnn/seed43 \
-    datasets/features/vicreg/small_cnn/seed44 \
-    datasets/features/distillation/projector_mlp/small_cnn/seed42 \
-    datasets/features/distillation/projector_mlp/small_cnn/seed43 \
-    datasets/features/distillation/projector_mlp/small_cnn/seed44 \
-    datasets/features/distillation/projector_linear/small_cnn/seed42 \
-    datasets/features/distillation/projector_linear/small_cnn/seed43 \
-    datasets/features/distillation/projector_linear/small_cnn/seed44 \
+  --feature-dir datasets/features \
+  --approach vicreg \
+  --student-cnn small \
+  --seeds 42 43 44 \
+  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
+  --output-dir runs/probes
+
+python3 -m evaluation.svm_evaluate \
+  --feature-dir datasets/features \
+  --approach distillation \
+  --student-cnn small \
+  --projector-type mlp \
+  --seeds 42 43 44 \
+  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
+  --output-dir runs/probes
+
+python3 -m evaluation.svm_evaluate \
+  --feature-dir datasets/features \
+  --approach distillation \
+  --student-cnn small \
+  --projector-type linear \
+  --seeds 42 43 44 \
   --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
   --output-dir runs/probes
 ```
@@ -389,10 +411,10 @@ for each seed.
 
 ```bash
 python3 -m evaluation.svm_evaluate \
-  --features-dir \
-    datasets/features/random_baseline/small_cnn/seed42 \
-    datasets/features/random_baseline/small_cnn/seed43 \
-    datasets/features/random_baseline/small_cnn/seed44 \
+  --feature-dir datasets/features \
+  --approach random_baseline \
+  --student-cnn small \
+  --seeds 42 43 44 \
   --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
   --output-dir runs/probes
 ```
@@ -417,10 +439,10 @@ per-seed and aggregate summaries:
 
 ```bash
 python3 -m evaluation.svm_evaluate \
-  --features-dir \
-    datasets/features/random_baseline/small_cnn/seed42 \
-    datasets/features/random_baseline/small_cnn/seed43 \
-    datasets/features/random_baseline/small_cnn/seed44 \
+  --feature-dir datasets/features \
+  --approach random_baseline \
+  --student-cnn small \
+  --seeds 42 43 44 \
   --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json \
   --output-dir runs/probes
 ```
@@ -443,7 +465,10 @@ to generate a log-scale curve from those summaries:
 
 ```bash
 python3 -m evaluation.knn_evaluate \
-  --features-dir datasets/features/vicreg/small_cnn/seed42 \
+  --feature-dir datasets/features \
+  --approach vicreg \
+  --student-cnn small \
+  --seeds 42 \
   --output-dir runs/probes
 ```
 
@@ -452,10 +477,10 @@ initializations and labeled-subset draws:
 
 ```bash
 python3 -m evaluation.knn_evaluate \
-  --features-dir \
-    datasets/features/random_baseline/small_cnn/seed42 \
-    datasets/features/random_baseline/small_cnn/seed43 \
-    datasets/features/random_baseline/small_cnn/seed44 \
+  --feature-dir datasets/features \
+  --approach random_baseline \
+  --student-cnn small \
+  --seeds 42 43 44 \
   --output-dir runs/probes
 ```
 
