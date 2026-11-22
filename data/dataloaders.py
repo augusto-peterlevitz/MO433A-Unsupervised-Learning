@@ -108,6 +108,20 @@ class EuroSATSubset(Dataset):
         return image
 
 
+class UnlabeledDataset(Dataset):
+    """Wrap a labeled dataset so training loops receive images only."""
+
+    def __init__(self, dataset):
+        self.dataset = dataset
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        image, _ = self.dataset[index]
+        return image
+
+
 # --------------------------------------------------
 # 5. Load saved indices
 # --------------------------------------------------

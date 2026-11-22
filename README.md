@@ -45,6 +45,20 @@ All arguments are optional. Defaults are `datasets/EuroSAT_RGB` for the dataset,
 `datasets/features/dino_vits16` for output, a batch size of `64`, and `4`
 data-loading workers.
 
+## Experiment Approach Names
+Run and feature-cache metadata use `approach` identifiers instead of row letters:
+
+| Project row | `approach` |
+|---|---|
+| A: random initialization | `random_baseline` |
+| B: direct VICReg training | `vicreg` |
+| C: DINO-to-student distillation | `distillation` |
+| D: frozen teacher encoding | `teacher_encoding` |
+
+The row letters are retained below as project-protocol terminology. Use the
+approach identifier in configs, feature metadata, and CLI options that select
+an experiment.
+
 ## Row B: VICReg Student Training
 Run the direct-training baseline for one named variant of the project's
 `StudentCNN` architecture. Specify all seeds for that variant with `--seeds`:
@@ -54,7 +68,7 @@ python3 -m scripts.train_student_cnn \
   --config configs/vicreg.json \
   --student-cnn small \
   --seeds 42 43 44 \
-  --output-dir checkpoints/row_b_vicreg
+  --output-dir checkpoints/vicreg
 ```
 
 This runs three seeds for the smaller variant. For the larger variant, run:
@@ -64,7 +78,7 @@ python3 -m scripts.train_student_cnn \
   --config configs/vicreg.json \
   --student-cnn large \
   --seeds 42 43 \
-  --output-dir checkpoints/row_b_vicreg
+  --output-dir checkpoints/vicreg
 ```
 
 Both use VICReg's two-view augmentation and loss, train on the unlabeled
@@ -72,7 +86,7 @@ training split, and use the `StudentCNN` backbone from `models/student_cnn.py`
 with no classifier head. Hyperparameters such as epochs, batch size, learning
 rate, and data paths come from the base config. Each run saves its config,
 checkpoint, backbone weights, and TensorBoard logs under
-`checkpoints/row_b_vicreg/{small_cnn,larger_cnn}/seed<seed>/`. Use
+`checkpoints/vicreg/{small_cnn,larger_cnn}/seed<seed>/`. Use
 `--student-cnn small` and `--student-cnn large` in separate invocations. These
 select the explicit `SmallStudent` and `LargerStudent` classes, respectively.
 The project protocol requires at least three seeds for `small` and two for
@@ -99,6 +113,44 @@ its architecture is selected by `student_cnn` in the config:
 python3 -m training.train_vicreg --config configs/vicreg.json
 ```
 
+## Row C: DINO-to-Student Distillation
+Train the same student architectures from a frozen DINO ViT-S/16 teacher.
+The config supplies the data paths and training budget; use the same settings
+as row B for a budget-matched comparison:
+
+```bash
+python3 -m training.train_distillation \
+  --config configs/vicreg.json \
+  --student-cnn small \
+  --seeds 42 43 44 \
+  --teacher-checkpoint dino_deitsmall16_pretrain.pth \
+  --output-dir checkpoints/distillation
+```
+
+For the larger student, use `--student-cnn large --seeds 42 43`. Each run
+freezes the DINO teacher, gives the teacher and student the same VICReg
+augmented view (student at 64px, teacher resized to 224px), and minimizes cosine
+distance between the teacher features and an MLP projection of the student
+features. Labels are ignored. It saves the student backbone, per-epoch loss,
+configuration, and teacher-forward timing under
+`checkpoints/distillation/{small_cnn,larger_cnn}/seed<seed>/`.
+
+Extract all seeds from the distilled row with:
+
+```bash
+python3 -m probing.extract_features \
+  --config configs/vicreg.json \
+  --approach distillation \
+  --student-cnn small \
+  --seeds 42 43 44
+```
+
+This reads the `distillation` checkpoints by default and stores features under
+`datasets/features/distillation/small_cnn/seed<seed>/`. Use
+`--student-cnn large --seeds 42 43` for the larger variant. The teacher is
+loaded from the local checkpoint; DINO repository code must be available to
+`torch.hub` on the first run.
+
 ## VICReg Feature Extraction
 Extract deterministic backbone features, labels, and original dataset indices
 for both the configured training split and the held-out test split:
@@ -118,8 +170,8 @@ To override paths or extraction settings:
 
 ```bash
 python3 -m probing.extract_features \
-  --config checkpoints/row_b_vicreg/small_cnn/seed42/vicreg.json \
-  --checkpoint-path checkpoints/row_b_vicreg/small_cnn/seed42/student_backbone.pth \
+  --config checkpoints/vicreg/small_cnn/seed42/vicreg.json \
+  --checkpoint-path checkpoints/vicreg/small_cnn/seed42/student_backbone.pth \
   --output-dir datasets/features/vicreg/small_cnn/seed42 \
   --batch-size 64 \
   --num-workers 4
@@ -171,10 +223,10 @@ python3 -m probing.svm_gridsearch \
   --output-dir runs/probes
 ```
 
-The grid search uses one designated row-B cache and saves the fixed parameters
-under `runs/probes/svm_gridsearch/<cache-name>/` (including a seed directory
-when the cache identifies one). `--seed` controls the cross-validation split
-and `LinearSVC` randomness. Repeat with `--kernel linear` for the linear SVM.
+The grid search uses one designated VICReg cache and saves the fixed parameters
+under `runs/probes/svm_gridsearch/vicreg/<student-size>/` (including a seed
+directory when the cache identifies one). `--seed` controls the cross-validation
+split and `LinearSVC` randomness. Repeat with `--kernel linear` for the linear SVM.
 Use the same parameter file for every seed and encoder; do not tune separately
 for each seed.
 
@@ -184,16 +236,16 @@ python3 -m probing.svm_evaluate \
     datasets/features/random_baseline/small_cnn/seed42 \
     datasets/features/random_baseline/small_cnn/seed43 \
     datasets/features/random_baseline/small_cnn/seed44 \
-  --params runs/probes/svm_gridsearch/vicreg_small_cnn/seed42/svm_gridsearch_rbf.json \
+  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
   --output-dir runs/probes
 ```
 
 `probing.svm_evaluate` supports both `linear` and `rbf` parameter files and
 reports test accuracy at 1%, 10%, 50%, and 100% of the labeled training set,
 for each draw in the training-subset pickle. It saves per-seed results and
-summaries under `runs/probes/svm_evaluation/<encoder-family>/<seed>/<kernel>/`
+summaries under `runs/probes/svm_evaluation/<approach>/<student-size>/<seed>/<kernel>/`
 and pooled seed/draw results under
-`runs/probes/svm_evaluation/<encoder-family>/aggregate/<kernel>/`. The pooled
+`runs/probes/svm_evaluation/<approach>/<student-size>/aggregate/<kernel>/`. The pooled
 summary reports the mean and standard deviation across seeds and labeled
 subset draws. The repeated identical 100% draws are counted once per seed in
 the pooled summary. Parameter counts and cost metadata are read from
@@ -212,7 +264,7 @@ python3 -m probing.svm_evaluate \
     datasets/features/random_baseline/small_cnn/seed42 \
     datasets/features/random_baseline/small_cnn/seed43 \
     datasets/features/random_baseline/small_cnn/seed44 \
-  --params runs/probes/svm_gridsearch/vicreg_small_cnn/seed42/svm_gridsearch_linear.json \
+  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json \
   --output-dir runs/probes
 ```
 

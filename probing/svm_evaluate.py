@@ -43,6 +43,16 @@ def get_cache_seed(feature_dir, metadata):
     return None
 
 
+def get_student_size(metadata, feature_dir):
+    student_cnn = metadata.get("student_cnn")
+    if student_cnn in {"small", "large"}:
+        return "small_cnn" if student_cnn == "small" else "larger_cnn"
+    for size_name in ("small_cnn", "larger_cnn"):
+        if size_name in feature_dir.parts:
+            return size_name
+    return None
+
+
 def get_result_directory(output_dir, feature_dir, metadata, aggregate_encoder):
     parts = feature_dir.parts
     if "random_baseline" in parts:
@@ -58,13 +68,22 @@ def get_result_directory(output_dir, feature_dir, metadata, aggregate_encoder):
             / parts[baseline_index + 1]
         )
 
-    row = metadata.get("row")
-    if row:
+    approach = metadata.get("approach")
+    if approach is None and metadata.get("row"):
+        approach = {
+            "A": "random_baseline",
+            "B": "vicreg",
+            "C": "distillation",
+            "D": "teacher_encoding",
+        }.get(str(metadata["row"]).upper())
+    if approach:
+        student_size = get_student_size(metadata, feature_dir)
+        encoder_directory = student_size or aggregate_encoder
         return (
             output_dir
             / "svm_evaluation"
-            / str(row).lower()
-            / aggregate_encoder
+            / str(approach)
+            / encoder_directory
         )
     return output_dir / "svm_evaluation" / aggregate_encoder
 
