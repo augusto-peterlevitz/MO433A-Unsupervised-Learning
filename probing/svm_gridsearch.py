@@ -10,7 +10,6 @@ from sklearn.svm import SVC, LinearSVC
 
 from data.dataloaders import get_data, load_indices
 
-
 def load_feature_metadata(feature_dir):
     metadata_path = feature_dir / "metadata.json"
     if metadata_path.exists():
@@ -60,6 +59,12 @@ def parse_args():
     parser.add_argument("--kernel", choices=("linear", "rbf"), required=True)
     parser.add_argument("--n-jobs", type=int, default=4)
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Seed for cross-validation splits and LinearSVC (default: 42).",
+    )
+    parser.add_argument(
         "--n-splits",
         type=int,
         default=5,
@@ -87,6 +92,8 @@ def perform_gridsearch(x_train, y_train, n_splits, random_state, pipeline, param
         "C": float(search.best_params_["classifier__C"]),
         "gamma": search.best_params_.get("classifier__gamma"),
         "cv_accuracy": float(search.best_score_),
+        "cv_random_seed": random_state,
+        "cv_n_splits": n_splits,
     }
 
     print(f"Best parameters: {result}")
@@ -123,7 +130,12 @@ def main():
             "classifier__C": [0.1, 1, 10, 100],
         }
     if args.kernel == "linear":
-        classifier = LinearSVC(C=1, dual="auto", max_iter=10_000)
+        classifier = LinearSVC(
+            C=1,
+            dual="auto",
+            max_iter=10_000,
+            random_state=args.seed,
+        )
 
     elif args.kernel == "rbf":
         classifier = SVC(C=1, gamma="scale", kernel="rbf")
@@ -143,7 +155,7 @@ def main():
         x_train=x_train,
         y_train=y_train,
         n_splits=args.n_splits,
-        random_state=RANDOM_SEED,
+        random_state=args.seed,
         pipeline=gridsearch_pipeline,
         parameter_grid=parameter_grid,
         n_jobs=args.n_jobs,

@@ -167,14 +167,16 @@ stratified CV and searches a small C/gamma grid for the RBF kernel:
 python3 -m probing.svm_gridsearch \
   --features-dir datasets/features/vicreg/small_cnn/seed42 \
   --kernel rbf \
+  --seed 42 \
   --output-dir runs/probes
 ```
 
 The grid search uses one designated row-B cache and saves the fixed parameters
 under `runs/probes/svm_gridsearch/<cache-name>/` (including a seed directory
-when the cache identifies one). Repeat with `--kernel linear` for the linear
-SVM. Use the same parameter file for every seed and encoder; do not tune
-separately for each seed.
+when the cache identifies one). `--seed` controls the cross-validation split
+and `LinearSVC` randomness. Repeat with `--kernel linear` for the linear SVM.
+Use the same parameter file for every seed and encoder; do not tune separately
+for each seed.
 
 ```bash
 python3 -m probing.svm_evaluate \
