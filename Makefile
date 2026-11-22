@@ -1,0 +1,207 @@
+PYTHON := python3
+CONFIG := configs/vicreg.json
+OUTPUT_CHECKPOINTS := outputs/checkpoints
+OUTPUT_FEATURES := outputs/features
+OUTPUT_RUNS := outputs/runs/probes
+EUROSAT_ROOT := datasets/EuroSAT_RGB
+TRAIN_PKL := datasets/eurosat_train_subsets.pkl
+TEST_PKL := datasets/eurosat_test_subset.pkl
+DINO_CHECKPOINT := dino_deitsmall16_pretrain.pth
+SEEDS_SMALL := 42 43 44
+SEEDS_LARGE := 42 43
+
+.PHONY: help generate-subsets teacher-features random-baseline \
+        vicreg-small vicreg-large train-vicreg \
+        distillation-small distillation-large train-distillation \
+        distillation-small-linear distillation-large-linear distillation-ablation \
+        baseline-features vicreg-features distillation-features distillation-linear-features \
+        svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
+        knn-probes svm-probes teacher-probes probes \
+        plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
+        plot-label-efficiency-knn plots diagnostics pipeline clean
+
+help:
+	@echo "Available Make targets:"
+	@echo "  generate-subsets          Generate EuroSAT training/test subset indices"
+	@echo "  random-baseline           Train/extract random-initialization baselines (row A)"
+	@echo "  train-vicreg              Train VICReg small and large students (row B)"
+	@echo "  train-distillation        Train MLP-distilled small and large students (row C)"
+	@echo "  distillation-ablation     Train linear-projector distillation ablation"
+	@echo "  teacher-features          Extract frozen DINO teacher features (row D)"
+	@echo "  baseline-features         Extract random-baseline features"
+	@echo "  vicreg-features           Extract VICReg features"
+	@echo "  distillation-features     Extract MLP-distillation features"
+	@echo "  distillation-linear-features  Extract linear-projector features"
+	@echo "  svm-gridsearch            Tune linear and RBF SVM parameters once on VICReg"
+	@echo "  knn-probes                Run KNN probes for every encoder"
+	@echo "  svm-probes                Run RBF-SVM probes for every encoder"
+	@echo "  teacher-probes            Run KNN and SVM probes on the frozen teacher"
+	@echo "  probes                    Run KNN and SVM probes"
+	@echo "  diagnostics               Run k-means and t-SNE diagnostics"
+	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
+	@echo "  plots                     Plot all label-efficiency curves"
+	@echo "  pipeline                  Run the complete experiment pipeline"
+	@echo "  clean                     Remove generated files under outputs/"
+
+generate-subsets:
+	$(PYTHON) -m data.generate_subsets \
+	  --eurosat-root $(EUROSAT_ROOT) \
+	  --train-pkl $(TRAIN_PKL) \
+	  --test-fraction 0.20 \
+	  --test-pkl $(TEST_PKL)
+
+random-baseline:
+	$(PYTHON) -m training.random_baseline \
+	  --eurosat-root $(EUROSAT_ROOT) \
+	  --train-pkl $(TRAIN_PKL) \
+	  --test-pkl $(TEST_PKL) \
+	  --student-cnn small \
+	  --seeds $(SEEDS_SMALL) \
+	  --batch-size 64 --num-workers 4
+	$(PYTHON) -m training.random_baseline \
+	  --eurosat-root $(EUROSAT_ROOT) \
+	  --train-pkl $(TRAIN_PKL) \
+	  --test-pkl $(TEST_PKL) \
+	  --student-cnn large \
+	  --seeds $(SEEDS_LARGE) \
+	  --batch-size 64 --num-workers 4
+
+vicreg-small:
+	$(PYTHON) -m training.train_vicreg \
+	  --config $(CONFIG) --student-cnn small --seeds $(SEEDS_SMALL) \
+	  --output-dir $(OUTPUT_CHECKPOINTS)/vicreg
+
+vicreg-large:
+	$(PYTHON) -m training.train_vicreg \
+	  --config $(CONFIG) --student-cnn large --seeds $(SEEDS_LARGE) \
+	  --output-dir $(OUTPUT_CHECKPOINTS)/vicreg
+
+train-vicreg: vicreg-small vicreg-large
+
+distillation-small:
+	$(PYTHON) -m training.train_distillation \
+	  --config $(CONFIG) --student-cnn small --seeds $(SEEDS_SMALL) \
+	  --projector-type mlp --teacher-checkpoint $(DINO_CHECKPOINT) \
+	  --output-dir $(OUTPUT_CHECKPOINTS)/distillation
+
+distillation-large:
+	$(PYTHON) -m training.train_distillation \
+	  --config $(CONFIG) --student-cnn large --seeds $(SEEDS_LARGE) \
+	  --projector-type mlp --teacher-checkpoint $(DINO_CHECKPOINT) \
+	  --output-dir $(OUTPUT_CHECKPOINTS)/distillation
+
+train-distillation: distillation-small distillation-large
+
+distillation-small-linear:
+	$(PYTHON) -m training.train_distillation \
+	  --config $(CONFIG) --student-cnn small --seeds $(SEEDS_SMALL) \
+	  --projector-type linear --teacher-checkpoint $(DINO_CHECKPOINT) \
+	  --output-dir $(OUTPUT_CHECKPOINTS)/distillation
+
+distillation-large-linear:
+	$(PYTHON) -m training.train_distillation \
+	  --config $(CONFIG) --student-cnn large --seeds $(SEEDS_LARGE) \
+	  --projector-type linear --teacher-checkpoint $(DINO_CHECKPOINT) \
+	  --output-dir $(OUTPUT_CHECKPOINTS)/distillation
+
+distillation-ablation: distillation-small-linear distillation-large-linear
+
+baseline-features:
+	$(PYTHON) -m training.random_baseline \
+	  --eurosat-root $(EUROSAT_ROOT) --train-pkl $(TRAIN_PKL) --test-pkl $(TEST_PKL) \
+	  --student-cnn small --seeds $(SEEDS_SMALL) --batch-size 64 --num-workers 4
+	$(PYTHON) -m training.random_baseline \
+	  --eurosat-root $(EUROSAT_ROOT) --train-pkl $(TRAIN_PKL) --test-pkl $(TEST_PKL) \
+	  --student-cnn large --seeds $(SEEDS_LARGE) --batch-size 64 --num-workers 4
+
+vicreg-features:
+	$(PYTHON) -m evaluation.extract_features \
+	  --config $(CONFIG) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL)
+	$(PYTHON) -m evaluation.extract_features \
+	  --config $(CONFIG) --approach vicreg --student-cnn large --seeds $(SEEDS_LARGE)
+
+distillation-features:
+	$(PYTHON) -m evaluation.extract_features \
+	  --config $(CONFIG) --approach distillation --student-cnn small --seeds $(SEEDS_SMALL)
+	$(PYTHON) -m evaluation.extract_features \
+	  --config $(CONFIG) --approach distillation --student-cnn large --seeds $(SEEDS_LARGE)
+
+distillation-linear-features:
+	$(PYTHON) -m evaluation.extract_features \
+	  --config $(CONFIG) --approach distillation --student-cnn small --seeds $(SEEDS_SMALL) \
+	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/distillation/ablation/projector_linear
+	$(PYTHON) -m evaluation.extract_features \
+	  --config $(CONFIG) --approach distillation --student-cnn large --seeds $(SEEDS_LARGE) \
+	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/distillation/ablation/projector_linear
+
+teacher-features:
+	$(PYTHON) -m evaluation.dino_extract_features \
+	  --eurosat-root $(EUROSAT_ROOT) \
+	  --checkpoint-path $(DINO_CHECKPOINT) \
+	  --output-dir $(OUTPUT_FEATURES)/dino_vits16 \
+	  --batch-size 64 \
+	  --num-workers 4
+
+svm-gridsearch-rbf:
+	$(PYTHON) -m evaluation.svm_gridsearch \
+	  --features-dir $(OUTPUT_FEATURES)/vicreg/small_cnn/seed42 \
+	  --kernel rbf --seed 42 --n-splits 5 --output-dir $(OUTPUT_RUNS)
+
+svm-gridsearch-linear:
+	$(PYTHON) -m evaluation.svm_gridsearch \
+	  --features-dir $(OUTPUT_FEATURES)/vicreg/small_cnn/seed42 \
+	  --kernel linear --seed 42 --n-splits 5 --output-dir $(OUTPUT_RUNS)
+
+svm-gridsearch: svm-gridsearch-rbf svm-gridsearch-linear
+
+knn-probes:
+	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn small --seeds $(SEEDS_SMALL) --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn large --seeds $(SEEDS_LARGE) --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn large --seeds $(SEEDS_LARGE) --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type mlp --seeds $(SEEDS_SMALL) --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type mlp --seeds $(SEEDS_LARGE) --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type linear --seeds $(SEEDS_SMALL) --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type linear --seeds $(SEEDS_LARGE) --output-dir $(OUTPUT_RUNS)
+
+svm-probes: svm-gridsearch-rbf
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn large --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn large --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type mlp --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type mlp --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type linear --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type linear --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+
+teacher-probes: teacher-features svm-gridsearch-rbf
+	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+
+probes: knn-probes svm-probes
+
+plot-label-efficiency-svm-linear:
+	$(PYTHON) -m evaluation.plot_label_efficiency --probe linear --input-dir $(OUTPUT_RUNS)/svm_evaluation --output-dir $(OUTPUT_RUNS)/label_efficiency
+
+plot-label-efficiency-svm-rbf:
+	$(PYTHON) -m evaluation.plot_label_efficiency --probe rbf --input-dir $(OUTPUT_RUNS)/svm_evaluation --output-dir $(OUTPUT_RUNS)/label_efficiency
+
+plot-label-efficiency-knn:
+	$(PYTHON) -m evaluation.plot_label_efficiency --probe knn --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/label_efficiency
+
+plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label-efficiency-knn
+
+diagnostics:
+	$(PYTHON) -m evaluation.representation_diagnostics \
+	  --features-dir $(OUTPUT_FEATURES)/random_baseline/small_cnn/seed42 \
+	  --features-dir $(OUTPUT_FEATURES)/vicreg/small_cnn/seed42 \
+	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_mlp/small_cnn/seed42 \
+	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_linear/small_cnn/seed42 \
+	  --features-dir $(OUTPUT_FEATURES)/dino_vits16 \
+	  --test-pkl $(TEST_PKL) \
+	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics
+
+pipeline: generate-subsets teacher-features random-baseline train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots
+
+clean:
+	rm -rf outputs
