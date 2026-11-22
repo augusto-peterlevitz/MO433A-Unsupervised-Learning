@@ -15,7 +15,7 @@ python3 -m pip install -r requirements.txt
 Generate labeled EuroSAT subset indices and save them to a pickle file:
 
 ```bash
-python3 -m scripts.generate_subsets \
+python3 -m data.generate_subsets \
   --eurosat-root datasets/EuroSAT_RGB \
   --train-pkl datasets/eurosat_train_subsets.pkl \
   --test-fraction 0.20 \
@@ -109,7 +109,7 @@ Extract features for all seeds in one command so the probe can report
 seed-to-seed variation:
 
 ```bash
-python3 -m probing.extract_features \
+python3 -m evaluation.extract_features \
   --config configs/vicreg.json \
   --student-cnn small \
   --seeds 42 43 44
@@ -188,13 +188,13 @@ distillation features for both settings; the extractor reads each run's
 `distillation.json` and separates caches by projector type:
 
 ```bash
-python3 -m probing.extract_features \
+python3 -m evaluation.extract_features \
   --config configs/vicreg.json \
   --approach distillation \
   --student-cnn small \
   --seeds 42 43 44
 
-python3 -m probing.extract_features \
+python3 -m evaluation.extract_features \
   --config configs/vicreg.json \
   --approach distillation \
   --student-cnn small \
@@ -220,7 +220,7 @@ projectors together with KNN; the evaluator keeps their output folders and
 seed aggregates separate:
 
 ```bash
-python3 -m probing.knn_evaluate \
+python3 -m evaluation.knn_evaluate \
   --features-dir \
     datasets/features/vicreg/small_cnn/seed42 \
     datasets/features/vicreg/small_cnn/seed43 \
@@ -237,7 +237,7 @@ python3 -m probing.knn_evaluate \
 For SVM, pass the same VICReg-tuned parameter file:
 
 ```bash
-python3 -m probing.svm_evaluate \
+python3 -m evaluation.svm_evaluate \
   --features-dir \
     datasets/features/vicreg/small_cnn/seed42 \
     datasets/features/vicreg/small_cnn/seed43 \
@@ -259,7 +259,7 @@ each distillation result against VICReg of the same size.
 Extract all seeds from the distilled row with:
 
 ```bash
-python3 -m probing.extract_features \
+python3 -m evaluation.extract_features \
   --config configs/vicreg.json \
   --approach distillation \
   --student-cnn small \
@@ -277,7 +277,7 @@ Extract deterministic backbone features, labels, and original dataset indices
 for both the configured training split and the held-out test split:
 
 ```bash
-python3 -m probing.extract_features
+python3 -m evaluation.extract_features
 ```
 
 The default config is `configs/vicreg.json`. The script reads the dataset root,
@@ -290,7 +290,7 @@ directory, and writes the cache to
 To override paths or extraction settings:
 
 ```bash
-python3 -m probing.extract_features \
+python3 -m evaluation.extract_features \
   --config checkpoints/vicreg/small_cnn/seed42/vicreg.json \
   --checkpoint-path checkpoints/vicreg/small_cnn/seed42/student_backbone.pth \
   --output-dir datasets/features/vicreg/small_cnn/seed42 \
@@ -304,13 +304,13 @@ cache includes both training and test samples, so use only training indices
 when tuning and keep test indices held out for final evaluation. Features are
 saved raw; preprocessing is deferred to the SVM pipeline so the scaler is
 fitted separately inside each cross-validation fold. Run
-`python3 -m probing.extract_features --help` for all options.
+`python3 -m evaluation.extract_features --help` for all options.
 
 ## Row A Random-Baseline Feature Extraction
 Extract row-A features for each random initialization and student size:
 
 ```bash
-python3 -m scripts.random_baseline \
+python3 -m training.random_baseline \
   --eurosat-root datasets/EuroSAT_RGB \
   --train-pkl datasets/eurosat_train_subsets.pkl \
   --test-pkl datasets/eurosat_test_subset.pkl \
@@ -337,7 +337,7 @@ using only the full labeled training split. The grid search uses 5-fold
 stratified CV and searches a small C/gamma grid for the RBF kernel:
 
 ```bash
-python3 -m probing.svm_gridsearch \
+python3 -m evaluation.svm_gridsearch \
   --features-dir datasets/features/vicreg/small_cnn/seed42 \
   --kernel rbf \
   --seed 42 \
@@ -352,7 +352,7 @@ Use the same parameter file for every seed and encoder; do not tune separately
 for each seed.
 
 ```bash
-python3 -m probing.svm_evaluate \
+python3 -m evaluation.svm_evaluate \
   --features-dir \
     datasets/features/random_baseline/small_cnn/seed42 \
     datasets/features/random_baseline/small_cnn/seed43 \
@@ -361,7 +361,7 @@ python3 -m probing.svm_evaluate \
   --output-dir runs/probes
 ```
 
-`probing.svm_evaluate` supports both `linear` and `rbf` parameter files and
+`evaluation.svm_evaluate` supports both `linear` and `rbf` parameter files and
 reports test accuracy at 1%, 10%, 50%, and 100% of the labeled training set,
 for each draw in the training-subset pickle. It saves per-seed results and
 summaries under `runs/probes/svm_evaluation/<approach>/<student-size>/<seed>/<kernel>/`
@@ -373,14 +373,14 @@ the pooled summary. Parameter counts and cost metadata are read from
 `metadata.json` when present. Do not tune on test data or separately for each
 seed or encoder. Use the JSON file produced by `svm_gridsearch.py` for the
 matching kernel. Run
-`python3 -m probing.svm_evaluate --help` for the evaluator options.
+`python3 -m evaluation.svm_evaluate --help` for the evaluator options.
 
 ## SVM Label-Efficiency Curve
 After evaluating all desired seeds, create a log-scale curve from the nested
 per-seed and aggregate summaries:
 
 ```bash
-python3 -m probing.svm_evaluate \
+python3 -m evaluation.svm_evaluate \
   --features-dir \
     datasets/features/random_baseline/small_cnn/seed42 \
     datasets/features/random_baseline/small_cnn/seed43 \
@@ -393,12 +393,12 @@ Use the RBF parameter JSON in the evaluation command instead for RBF results.
 Plot the nested summaries with:
 
 ```bash
-python3 -m probing.plot_label_efficiency \
+python3 -m evaluation.plot_label_efficiency \
   --probe linear \
   --input-dir runs/probes/svm_evaluation
 ```
 
-The standalone `probing.plot_label_efficiency` script supports
+The standalone `evaluation.plot_label_efficiency` script supports
 `--probe linear`, `--probe rbf`, or `--probe knn`.
 
 ## KNN Label-Efficiency Curve
@@ -406,7 +406,7 @@ The KNN evaluator writes per-seed and combined summaries. Run the plot script
 to generate a log-scale curve from those summaries:
 
 ```bash
-python3 -m probing.knn_evaluate \
+python3 -m evaluation.knn_evaluate \
   --features-dir datasets/features/vicreg/small_cnn/seed42 \
   --output-dir runs/probes
 ```
@@ -415,7 +415,7 @@ For row A, pass every seed cache in the same command to aggregate both random
 initializations and labeled-subset draws:
 
 ```bash
-python3 -m probing.knn_evaluate \
+python3 -m evaluation.knn_evaluate \
   --features-dir \
     datasets/features/random_baseline/small_cnn/seed42 \
     datasets/features/random_baseline/small_cnn/seed43 \
@@ -431,14 +431,14 @@ cosine distance and, for every labeled subset and draw, chooses
 `k = min(20, minimum labeled examples per class)`. Feature L2 normalization
 and StandardScaler preprocessing are fitted consistently within each probe
 training split. To create a label-efficiency plot from the nested KNN summaries,
-run `python3 -m probing.plot_label_efficiency --probe knn --input-dir runs/probes`.
+run `python3 -m evaluation.plot_label_efficiency --probe knn --input-dir runs/probes`.
 
 ## Representation Diagnostics
 Run the Section 3.7 diagnostics on the held-out test features for every
 encoder. Repeat `--features-dir` once per cache:
 
 ```bash
-python3 -m probing.representation_diagnostics \
+python3 -m evaluation.representation_diagnostics \
   --features-dir datasets/features/vicreg/small_cnn/seed42 \
   --features-dir datasets/features/dino_vits16 \
   --output-dir runs/probes/representation_diagnostics
@@ -450,18 +450,5 @@ NMI and ARI in `representation_metrics.csv`, t-SNE coordinates in
 `tsne_coordinates.csv`, and a comparable panel in `tsne_projections.png`.
 All encoders use the same t-SNE perplexity and random seed; override them with
 `--perplexity` and `--random-state` if needed. Run
-`python3 -m probing.representation_diagnostics --help` for all options.
+`python3 -m evaluation.representation_diagnostics --help` for all options.
 
-## DataLoader Smoke Test
-Build the VICReg, distillation, labeled-training, and final-test data loaders
-and print their dataset sizes:
-
-```bash
-python3 -m scripts.test_dataloaders \
-  --eurosat-root datasets/EuroSAT_RGB \
-  --train-pkl datasets/eurosat_train_subsets.pkl \
-  --test-pkl datasets/eurosat_test_subset.pkl
-```
-
-All options are optional. The defaults use the dataset and pickle paths shown
-above. Use `python3 -m scripts.test_dataloaders --help` to see all options.
