@@ -5,7 +5,7 @@ import pickle
 import random
 import time
 from contextlib import closing
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -116,13 +116,29 @@ def load_config(path):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Train a VICReg model using a JSON configuration file."
+        description="Train row-B VICReg students using a JSON configuration file."
     )
     parser.add_argument(
         "--config",
         type=Path,
         default=Path("configs/vicreg.json"),
-        help="Path to the training configuration (default: configs/vicreg.json).",
+        help="Path to the base training configuration (default: configs/vicreg.json).",
+    )
+    parser.add_argument(
+        "--student-cnn",
+        choices=("small", "large"),
+        help="Train every requested seed for this StudentCNN architecture.",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        help="Random seeds; use at least 3 for small and 2 for large.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Root directory for size- and seed-specific checkpoints.",
     )
     return parser.parse_args()
 
@@ -305,8 +321,41 @@ def train(config):
 
 def main():
     args = parse_args()
-    config = load_config(args.config)
-    train(config)
+    base_config = load_config(args.config)
+
+    if (args.student_cnn is None) != (args.seeds is None):
+        raise ValueError("--student-cnn and --seeds must be provided together.")
+
+    if args.student_cnn is None:
+        train(base_config)
+        return
+
+    minimum_seeds = 3 if args.student_cnn == "small" else 2
+    if len(args.seeds) < minimum_seeds:
+        raise ValueError(
+            f"The {args.student_cnn} student requires at least {minimum_seeds} seeds."
+        )
+    if len(set(args.seeds)) != len(args.seeds):
+        raise ValueError("--seeds cannot contain duplicates.")
+    if any(seed < 0 for seed in args.seeds):
+        raise ValueError("--seeds must contain nonnegative integers.")
+
+    output_root = args.output_dir or Path("checkpoints/vicreg")
+    size_name = "small_cnn" if args.student_cnn == "small" else "larger_cnn"
+    for seed in args.seeds:
+        config = replace(
+            base_config,
+            experiment_name=f"vicreg_{size_name}",
+            student_cnn=args.student_cnn,
+            approach="vicreg",
+            seed=seed,
+            output_dir=output_root / size_name / f"seed{seed}",
+        )
+        config.validate()
+        print(
+            f"\nStarting row B: student_cnn={args.student_cnn}, seed={seed}"
+        )
+        train(config)
 
 
 if __name__ == "__main__":

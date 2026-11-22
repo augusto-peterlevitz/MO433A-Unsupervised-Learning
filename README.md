@@ -113,7 +113,7 @@ Run the direct-training baseline for one named variant of the project's
 `StudentCNN` architecture. Specify all seeds for that variant with `--seeds`:
 
 ```bash
-python3 -m scripts.train_student_cnn \
+python3 -m training.train_vicreg \
   --config configs/vicreg.json \
   --student-cnn small \
   --seeds 42 43 44 \
@@ -123,7 +123,7 @@ python3 -m scripts.train_student_cnn \
 This runs three seeds for the smaller variant. For the larger variant, run:
 
 ```bash
-python3 -m scripts.train_student_cnn \
+python3 -m training.train_vicreg \
   --config configs/vicreg.json \
   --student-cnn large \
   --seeds 42 43 \
