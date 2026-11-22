@@ -64,7 +64,10 @@ def get_result_directory(output_dir, feature_dir, metadata, encoder_name):
     if approach:
         student_size = get_student_size(metadata, feature_dir)
         encoder_directory = student_size or re.sub(r"_seed\d+$", "", encoder_name)
-        return output_dir / "knn_evaluation" / str(approach) / encoder_directory
+        result_dir = output_dir / "knn_evaluation" / str(approach) / encoder_directory
+        if approach == "distillation" and metadata.get("projector_type"):
+            result_dir /= f"projector_{metadata['projector_type']}"
+        return result_dir
     return output_dir / "knn_evaluation" / encoder_name
 
 

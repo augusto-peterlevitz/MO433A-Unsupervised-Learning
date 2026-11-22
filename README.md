@@ -156,6 +156,106 @@ tensorboard --logdir checkpoints/distillation/small_cnn/seed42/tensorboard
 TensorBoard records batch and epoch distillation loss, learning rate, and epoch
 duration. Each seed has its own timestamped run directory under `tensorboard/`.
 
+### Required projector ablation
+The required ablation compares the main MLP projector with a linear projector,
+while keeping the cosine loss, data, training budget, seeds, and probes fixed.
+The existing Row C MLP runs are the default setting; train the linear setting
+for both student sizes with the same seed protocol:
+
+```bash
+python3 -m training.train_distillation \
+  --config configs/vicreg.json \
+  --student-cnn small \
+  --seeds 42 43 44 \
+  --projector-type linear \
+  --teacher-checkpoint dino_deitsmall16_pretrain.pth \
+  --output-dir checkpoints/distillation
+
+python3 -m training.train_distillation \
+  --config configs/vicreg.json \
+  --student-cnn large \
+  --seeds 42 43 \
+  --projector-type linear \
+  --teacher-checkpoint dino_deitsmall16_pretrain.pth \
+  --output-dir checkpoints/distillation
+```
+
+The linear runs are saved separately under
+`checkpoints/distillation/ablation/projector_linear/{small_cnn,larger_cnn}/seed<seed>/`;
+the default MLP runs remain under
+`checkpoints/distillation/{small_cnn,larger_cnn}/seed<seed>/`. Extract
+distillation features for both settings; the extractor reads each run's
+`distillation.json` and separates caches by projector type:
+
+```bash
+python3 -m probing.extract_features \
+  --config configs/vicreg.json \
+  --approach distillation \
+  --student-cnn small \
+  --seeds 42 43 44
+
+python3 -m probing.extract_features \
+  --config configs/vicreg.json \
+  --approach distillation \
+  --student-cnn small \
+  --seeds 42 43 44 \
+  --checkpoint-root checkpoints/distillation/ablation/projector_linear
+```
+
+The default feature-cache roots are
+`datasets/features/distillation/projector_mlp/<student-size>/seed<seed>/` and
+`datasets/features/distillation/projector_linear/<student-size>/seed<seed>/`.
+Repeat extraction with `--student-cnn large --seeds 42 43` for both projector
+settings. The evaluator outputs also keep projector types in separate
+directories. Use the same VICReg-tuned SVM parameter files and KNN settings
+for both variants and for the direct-VICReg baseline. This tests whether the
+MLP's extra nonlinear capacity helps align student and teacher features;
+the expectation is that linear may underperform, especially for the smaller
+student, but the result is empirical. Compare each projector setting against
+the matching VICReg student size, and report the C-versus-B gap by projector
+setting, student size, label fraction, and seed/subset spread.
+
+For example, evaluate the small-student VICReg baseline and both distillation
+projectors together with KNN; the evaluator keeps their output folders and
+seed aggregates separate:
+
+```bash
+python3 -m probing.knn_evaluate \
+  --features-dir \
+    datasets/features/vicreg/small_cnn/seed42 \
+    datasets/features/vicreg/small_cnn/seed43 \
+    datasets/features/vicreg/small_cnn/seed44 \
+    datasets/features/distillation/projector_mlp/small_cnn/seed42 \
+    datasets/features/distillation/projector_mlp/small_cnn/seed43 \
+    datasets/features/distillation/projector_mlp/small_cnn/seed44 \
+    datasets/features/distillation/projector_linear/small_cnn/seed42 \
+    datasets/features/distillation/projector_linear/small_cnn/seed43 \
+    datasets/features/distillation/projector_linear/small_cnn/seed44 \
+  --output-dir runs/probes
+```
+
+For SVM, pass the same VICReg-tuned parameter file:
+
+```bash
+python3 -m probing.svm_evaluate \
+  --features-dir \
+    datasets/features/vicreg/small_cnn/seed42 \
+    datasets/features/vicreg/small_cnn/seed43 \
+    datasets/features/vicreg/small_cnn/seed44 \
+    datasets/features/distillation/projector_mlp/small_cnn/seed42 \
+    datasets/features/distillation/projector_mlp/small_cnn/seed43 \
+    datasets/features/distillation/projector_mlp/small_cnn/seed44 \
+    datasets/features/distillation/projector_linear/small_cnn/seed42 \
+    datasets/features/distillation/projector_linear/small_cnn/seed43 \
+    datasets/features/distillation/projector_linear/small_cnn/seed44 \
+  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
+  --output-dir runs/probes
+```
+
+Repeat with large-student seeds `42 43` for all three encoders. This yields
+the required two-projector-setting-by-two-student-size result grid; compare
+each distillation result against VICReg of the same size.
+
 Extract all seeds from the distilled row with:
 
 ```bash
@@ -166,8 +266,8 @@ python3 -m probing.extract_features \
   --seeds 42 43 44
 ```
 
-This reads the `distillation` checkpoints by default and stores features under
-`datasets/features/distillation/small_cnn/seed<seed>/`. Use
+This reads the MLP `distillation` checkpoints by default and stores features under
+`datasets/features/distillation/projector_mlp/small_cnn/seed<seed>/`. Use
 `--student-cnn large --seeds 42 43` for the larger variant. The teacher is
 loaded from the local checkpoint; DINO repository code must be available to
 `torch.hub` on the first run.

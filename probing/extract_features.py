@@ -67,7 +67,21 @@ def parse_args():
     return parser.parse_args()
 
 
-def extract(config, args, output_dir, checkpoint_path):
+def load_projector_type(run_dir):
+    metadata_path = run_dir / "distillation.json"
+    if not metadata_path.is_file():
+        return "mlp"
+    with metadata_path.open(encoding="utf-8") as file:
+        metadata = json.load(file)
+    projector_type = metadata.get("projector_type", "mlp")
+    if projector_type not in {"mlp", "linear"}:
+        raise ValueError(
+            f"Unsupported projector_type in {metadata_path}: {projector_type!r}"
+        )
+    return projector_type
+
+
+def extract(config, args, output_dir, checkpoint_path, projector_type=None):
     dataset_root = args.eurosat_root or config.dataset_root
     train_path = args.train_pkl or config.subsets_path
     batch_size = config.batch_size if args.batch_size is None else args.batch_size
@@ -136,6 +150,8 @@ def extract(config, args, output_dir, checkpoint_path):
         "batch_size": batch_size,
         "device": str(device),
     }
+    if config.approach == "distillation":
+        metadata["projector_type"] = projector_type or "mlp"
     with (output_dir / "metadata.json").open("w", encoding="utf-8") as file:
         json.dump(metadata, file, indent=2)
 
@@ -164,13 +180,29 @@ def main():
         checkpoint_path = args.checkpoint_path or (
             base_config.output_dir / "student_backbone.pth"
         )
-        output_dir = args.output_dir or (
-            Path("datasets/features")
-            / approach
-            / ("small_cnn" if base_config.student_cnn == "small" else "larger_cnn")
-            / f"seed{base_config.seed}"
+        projector_type = (
+            load_projector_type(checkpoint_path.parent)
+            if approach == "distillation"
+            else None
         )
-        extract(base_config, args, output_dir, checkpoint_path)
+        output_dir = args.output_dir
+        if output_dir is None:
+            output_dir = Path("datasets/features") / approach
+            if projector_type is not None:
+                output_dir /= f"projector_{projector_type}"
+            size_name = (
+                "small_cnn"
+                if base_config.student_cnn == "small"
+                else "larger_cnn"
+            )
+            output_dir /= size_name / f"seed{base_config.seed}"
+        extract(
+            base_config,
+            args,
+            output_dir,
+            checkpoint_path,
+            projector_type=projector_type,
+        )
         return
 
     if args.checkpoint_path:
@@ -207,15 +239,24 @@ def main():
             config.seed = seed
             config.output_dir = run_dir
 
+        projector_type = (
+            load_projector_type(run_dir) if approach == "distillation" else None
+        )
+        run_feature_root = feature_root
+        if projector_type is not None:
+            run_feature_root /= f"projector_{projector_type}"
+
         print(
-            f"\nExtracting approach={approach}: "
+            f"\nExtracting approach={approach}"
+            f"{f', projector={projector_type}' if projector_type else ''}: "
             f"student_cnn={student_cnn}, seed={seed}"
         )
         extract(
             config,
             args,
-            output_dir=feature_root / size_name / f"seed{seed}",
+            output_dir=run_feature_root / size_name / f"seed{seed}",
             checkpoint_path=run_dir / "student_backbone.pth",
+            projector_type=projector_type,
         )
 
 

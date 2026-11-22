@@ -51,6 +51,15 @@ def parse_args():
         help="Random seeds; use at least 3 for small and 2 for large.",
     )
     parser.add_argument(
+        "--projector-type",
+        choices=("mlp", "linear"),
+        default="mlp",
+        help=(
+            "Student-to-teacher projector. Use linear for the required projector "
+            "ablation; mlp is the main-comparison default."
+        ),
+    )
+    parser.add_argument(
         "--teacher-checkpoint",
         type=Path,
         default=Path("dino_deitsmall16_pretrain.pth"),
@@ -107,11 +116,24 @@ def save_config(config, output_path):
         file.write("\n")
 
 
-def train_one(config, teacher, teacher_checkpoint):
+def build_projector(student_dim, projector_type):
+    if projector_type == "linear":
+        return nn.Linear(student_dim, TEACHER_DIM)
+    if projector_type == "mlp":
+        return nn.Sequential(
+            nn.Linear(student_dim, 2048),
+            nn.BatchNorm1d(2048),
+            nn.GELU(),
+            nn.Linear(2048, TEACHER_DIM),
+        )
+    raise ValueError(f"Unsupported projector type: {projector_type}")
+
+
+def train_one(config, teacher, teacher_checkpoint, projector_type):
     config.validate()
     if config.approach != "distillation":
         raise ValueError("train_distillation requires approach='distillation'.")
-    if config.batch_size < 2:
+    if projector_type == "mlp" and config.batch_size < 2:
         raise ValueError("Distillation batch_size must be at least 2 for projector BatchNorm.")
     set_seed(config.seed)
     device = next(teacher.parameters()).device
@@ -147,12 +169,7 @@ def train_one(config, teacher, teacher_checkpoint):
         )
 
     student = build_student(config.student_cnn).to(device)
-    projector = nn.Sequential(
-        nn.Linear(student.feature_dim, 2048),
-        nn.BatchNorm1d(2048),
-        nn.GELU(),
-        nn.Linear(2048, TEACHER_DIM),
-    ).to(device)
+    projector = build_projector(student.feature_dim, projector_type).to(device)
     optimizer = torch.optim.AdamW(
         list(student.parameters()) + list(projector.parameters()),
         lr=config.learning_rate,
@@ -168,14 +185,18 @@ def train_one(config, teacher, teacher_checkpoint):
     save_config(config, config.output_dir / "vicreg.json")
     metrics_path = config.output_dir / "metrics.csv"
     run_timestamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
-    run_name = f"distillation_{config.student_cnn}_seed{config.seed}_{run_timestamp}"
+    run_name = (
+        f"distillation_{projector_type}_{config.student_cnn}_"
+        f"seed{config.seed}_{run_timestamp}"
+    )
     tensorboard_dir = config.output_dir / "tensorboard" / run_name
     teacher_timing_events = []
     teacher_forward_seconds = 0.0
     global_step = 0
     parameter_count = sum(parameter.numel() for parameter in student.parameters())
     print(
-        f"Row C: student={config.student_cnn}, seed={config.seed}, "
+        f"Distillation: projector={projector_type}, student={config.student_cnn}, "
+        f"seed={config.seed}, "
         f"feature_dim={student.feature_dim}, parameters={parameter_count:,}, "
         f"images={len(train_dataset)}, batches/epoch={len(train_loader)}"
     )
@@ -189,6 +210,7 @@ def train_one(config, teacher, teacher_checkpoint):
         summary_writer.add_text("experiment/approach", config.approach, 0)
         summary_writer.add_text("experiment/student_cnn", config.student_cnn, 0)
         summary_writer.add_text("experiment/seed", str(config.seed), 0)
+        summary_writer.add_text("experiment/projector_type", projector_type, 0)
         writer = csv.DictWriter(
             file,
             fieldnames=("epoch", "loss", "learning_rate", "epoch_seconds"),
@@ -301,6 +323,7 @@ def train_one(config, teacher, teacher_checkpoint):
                     "loss": average_loss,
                     "student_cnn": config.student_cnn,
                     "seed": config.seed,
+                    "projector_type": projector_type,
                 },
                 config.output_dir / "last_checkpoint.pth",
             )
@@ -316,6 +339,7 @@ def train_one(config, teacher, teacher_checkpoint):
     torch.save(student.state_dict(), backbone_path)
     distillation_metadata = {
         "approach": "distillation",
+        "projector_type": projector_type,
         "method": "cosine feature distillation",
         "teacher": "DINO ViT-S/16",
         "teacher_checkpoint": str(teacher_checkpoint.resolve()),
@@ -369,18 +393,24 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     teacher = load_teacher(args.teacher_checkpoint, device)
     size_name = "small_cnn" if args.student_cnn == "small" else "larger_cnn"
+    run_root = args.output_dir
+    if args.projector_type == "linear":
+        run_root = run_root / "ablation" / "projector_linear"
 
     for seed in args.seeds:
         config = replace(
             base_config,
-            experiment_name=f"distillation_{size_name}",
+            experiment_name=f"distillation_{args.projector_type}_{size_name}",
             student_cnn=args.student_cnn,
             approach="distillation",
             seed=seed,
-            output_dir=args.output_dir / size_name / f"seed{seed}",
+            output_dir=run_root / size_name / f"seed{seed}",
         )
-        print(f"\nStarting row C: student={args.student_cnn}, seed={seed}")
-        train_one(config, teacher, args.teacher_checkpoint)
+        print(
+            f"\nStarting distillation: projector={args.projector_type}, "
+            f"student={args.student_cnn}, seed={seed}"
+        )
+        train_one(config, teacher, args.teacher_checkpoint, args.projector_type)
 
 
 if __name__ == "__main__":
