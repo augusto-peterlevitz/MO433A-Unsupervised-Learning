@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("checkpoints/row_b_vicreg"),
+        default=Path("checkpoints/vicreg"),
         help="Root directory for size- and seed-specific checkpoints.",
     )
     parser.add_argument(
@@ -60,6 +60,7 @@ def main():
             base_config,
             experiment_name=f"vicreg_{size_name}",
             student_cnn=args.student_cnn,
+            approach="vicreg",
             seed=seed,
             output_dir=output_dir,
         )

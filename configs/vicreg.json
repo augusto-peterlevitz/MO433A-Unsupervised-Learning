@@ -3,6 +3,7 @@
   "dataset_root": "datasets/EuroSAT_RGB",
   "subsets_path": "datasets/eurosat_train_subsets.pkl",
   "student_cnn": "large",
+  "approach": "vicreg",
   "batch_size": 64,
   "epochs": 2,
   "learning_rate": 0.001,

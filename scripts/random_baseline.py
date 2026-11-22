@@ -96,7 +96,7 @@ def main():
         metadata = {
             "model": f"Random {args.student_cnn} StudentCNN",
             "encoder": f"random_baseline_{size_name}_seed{seed}",
-            "row": "A",
+            "approach": "random_baseline",
             "seed": seed,
             "student_cnn": args.student_cnn,
             "pretrained": False,

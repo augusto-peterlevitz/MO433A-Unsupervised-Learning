@@ -145,6 +145,7 @@ def main():
 
     metadata = {
         "model": "DINO ViT-S/16",
+        "approach": "teacher_encoding",
         "checkpoint": str(args.checkpoint_path.resolve()),
         "num_parameters": n_params,
         "feature_dim": int(features.shape[1]),

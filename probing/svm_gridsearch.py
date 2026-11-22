@@ -35,10 +35,32 @@ def get_cache_name(feature_dir, metadata):
     return feature_dir.name
 
 
+def get_approach(metadata):
+    approach = metadata.get("approach")
+    if approach is None and metadata.get("row"):
+        approach = {
+            "A": "random_baseline",
+            "B": "vicreg",
+            "C": "distillation",
+            "D": "teacher_encoding",
+        }.get(str(metadata["row"]).upper())
+    return approach
+
+
+def get_student_size(metadata, feature_dir):
+    student_cnn = metadata.get("student_cnn")
+    if student_cnn in {"small", "large"}:
+        return "small_cnn" if student_cnn == "small" else "larger_cnn"
+    for size_name in ("small_cnn", "larger_cnn"):
+        if size_name in feature_dir.parts:
+            return size_name
+    return None
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            "Tune shared SVM settings on one designated row-B feature cache. "
+            "Tune shared SVM settings on one designated VICReg feature cache. "
             "Use the same resulting parameters for every seed and encoder."
         )
     )
@@ -122,8 +144,11 @@ def main():
     )
 
     metadata = load_feature_metadata(args.feature_dir)
-    if metadata.get("row") and str(metadata["row"]).upper() != "B":
-        raise ValueError("SVM hyperparameters must be tuned on a row-B feature cache.")
+    approach = get_approach(metadata)
+    if approach and approach != "vicreg":
+        raise ValueError(
+            "SVM hyperparameters must be tuned on a 'vicreg' feature cache."
+        )
     x_train, y_train = get_data(train_indices, args.feature_dir)
 
     parameter_grid = {
@@ -161,18 +186,20 @@ def main():
         n_jobs=args.n_jobs,
     )
 
-    cache_name = re.sub(
-        r"_seed\d+$",
-        "",
-        get_cache_name(args.feature_dir, metadata),
-    )
+    cache_name = re.sub(r"_seed\d+$", "", get_cache_name(args.feature_dir, metadata))
     seed = get_cache_seed(args.feature_dir, metadata)
-    result_dir = args.output_dir / "svm_gridsearch" / cache_name
+    student_size = get_student_size(metadata, args.feature_dir)
+    if approach and student_size:
+        result_dir = args.output_dir / "svm_gridsearch" / approach / student_size
+    else:
+        result_dir = args.output_dir / "svm_gridsearch" / cache_name
     if seed is not None:
         result_dir /= f"seed{seed}"
     output_path = result_dir / f"svm_gridsearch_{args.kernel}.json"
     results["kernel"] = args.kernel
-    results["tuning_encoder"] = cache_name
+    results["tuning_encoder"] = (
+        f"{approach}/{student_size}" if approach and student_size else cache_name
+    )
     results["tuning_seed"] = seed
     save_results(output_path, results)
 

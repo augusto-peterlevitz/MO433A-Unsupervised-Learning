@@ -12,7 +12,7 @@ from training.train_vicreg import load_config
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Extract deterministic VICReg student features for EuroSAT."
+        description="Extract deterministic VICReg or distilled student features for EuroSAT."
     )
     parser.add_argument(
         "--config",
@@ -26,15 +26,19 @@ def parse_args():
         help="Architecture to extract when using --seeds; defaults to the config.",
     )
     parser.add_argument(
+        "--approach",
+        choices=("vicreg", "distillation"),
+        help="Student training approach; defaults to the config.",
+    )
+    parser.add_argument(
         "--seeds",
         type=int,
         nargs="+",
-        help="Extract these trained seeds from the row-B checkpoint directory.",
+        help="Extract these trained seeds from the selected approach's checkpoint directory.",
     )
     parser.add_argument(
         "--checkpoint-root",
         type=Path,
-        default=Path("checkpoints/row_b_vicreg"),
         help="Root containing <size>/seed<seed>/ run folders.",
     )
     parser.add_argument(
@@ -55,7 +59,7 @@ def parse_args():
         type=Path,
         help=(
             "Single-run output directory, or root directory when using --seeds "
-            "(default: datasets/features/vicreg/<size>/seed<seed>)."
+            "(default is selected by approach, architecture, and seed)."
         ),
     )
     parser.add_argument("--batch-size", type=int)
@@ -119,9 +123,9 @@ def extract(config, args, output_dir, checkpoint_path):
     np.save(output_dir / "indices.npy", sample_indices)
 
     metadata = {
-        "model": f"VICReg {config.student_cnn} StudentCNN",
+        "model": f"{config.approach} {config.student_cnn} StudentCNN",
         "encoder": f"{config.experiment_name}_seed{config.seed}",
-        "row": "B",
+        "approach": config.approach,
         "seed": config.seed,
         "student_cnn": config.student_cnn,
         "checkpoint": str(checkpoint_path),
@@ -141,8 +145,18 @@ def extract(config, args, output_dir, checkpoint_path):
 def main():
     args = parse_args()
     base_config = load_config(args.config)
+    approach = args.approach or base_config.approach
+    if approach not in {"vicreg", "distillation"}:
+        raise ValueError(
+            "probing.extract_features supports only 'vicreg' and 'distillation'; "
+            "use the dedicated extractor for random_baseline or teacher_encoding."
+        )
 
     if not args.seeds:
+        if args.approach and args.approach != base_config.approach:
+            raise ValueError(
+                "--approach must match the approach recorded in the config."
+            )
         if args.student_cnn and args.student_cnn != base_config.student_cnn:
             raise ValueError(
                 "--student-cnn can only override the architecture when --seeds is used."
@@ -152,7 +166,7 @@ def main():
         )
         output_dir = args.output_dir or (
             Path("datasets/features")
-            / "vicreg"
+            / approach
             / ("small_cnn" if base_config.student_cnn == "small" else "larger_cnn")
             / f"seed{base_config.seed}"
         )
@@ -169,25 +183,34 @@ def main():
 
     student_cnn = args.student_cnn or base_config.student_cnn
     size_name = "small_cnn" if student_cnn == "small" else "larger_cnn"
-    feature_root = args.output_dir or Path("datasets/features/vicreg")
+    checkpoint_root = args.checkpoint_root or Path("checkpoints") / approach
+    feature_root = args.output_dir or Path("datasets/features") / approach
 
     for seed in args.seeds:
-        run_dir = args.checkpoint_root / size_name / f"seed{seed}"
+        run_dir = checkpoint_root / size_name / f"seed{seed}"
         run_config_path = run_dir / "vicreg.json"
         if run_config_path.is_file():
             config = load_config(run_config_path)
-            if config.student_cnn != student_cnn or config.seed != seed:
+            if (
+                config.student_cnn != student_cnn
+                or config.seed != seed
+                or config.approach != approach
+            ):
                 raise ValueError(
                     f"Run config {run_config_path} does not match requested "
-                    f"student={student_cnn}, seed={seed}."
+                    f"approach={approach}, student={student_cnn}, seed={seed}."
                 )
         else:
             config = base_config
             config.student_cnn = student_cnn
+            config.approach = approach
             config.seed = seed
             config.output_dir = run_dir
 
-        print(f"\nExtracting row-B features: student_cnn={student_cnn}, seed={seed}")
+        print(
+            f"\nExtracting approach={approach}: "
+            f"student_cnn={student_cnn}, seed={seed}"
+        )
         extract(
             config,
             args,
