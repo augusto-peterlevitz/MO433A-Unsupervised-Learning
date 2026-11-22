@@ -43,7 +43,20 @@ python3 -m scripts.dino_extract_features \
 All arguments are optional. Defaults are `datasets/EuroSAT_RGB` for the dataset,
 `dino_deitsmall16_pretrain.pth` for the checkpoint,
 `datasets/features/dino_vits16` for output, a batch size of `64`, and `4`
-data-loading workers.
+data-loading workers. The saved `metadata.json` records the checkpoint's
+resolved path, filename, SHA-256 digest, DINO source repository and paper,
+pretraining dataset, feature pooling, and published compute references.
+
+The official [DINO repository](https://github.com/facebookresearch/dino)
+describes ViT-S/16 training on ImageNet and reports two compute references:
+the 100-epoch run took 1.75 days on 8 GPUs (about 336 GPU-days), and the
+300-epoch boosted run took 2.6 days on 16 GPUs (about 998 GPU-days). These
+are recorded as published references, not as confirmed costs for the local
+checkpoint: the checkpoint's exact training run has not been verified. In a
+report, identify this uncertainty rather than attributing either reference
+directly to the checkpoint. The DINO training data is ImageNet-1k used
+self-supervised, without labels. The feature cache uses the model's CLS-token
+output.
 
 ## Experiment Approach Names
 Run and feature-cache metadata use `approach` identifiers instead of row letters:

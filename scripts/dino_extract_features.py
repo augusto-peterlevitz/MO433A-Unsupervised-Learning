@@ -1,5 +1,6 @@
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -12,6 +13,9 @@ from data.eurosat import EuroSAT
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+TEACHER_SOURCE = "https://github.com/facebookresearch/dino"
+TEACHER_PAPER = "https://arxiv.org/abs/2104.14294"
 
 
 def parse_args():
@@ -66,6 +70,15 @@ teacher_transform = transforms.Compose([
 
 def main():
     args = parse_args()
+    if not args.checkpoint_path.is_file():
+        raise FileNotFoundError(
+            f"DINO checkpoint not found: {args.checkpoint_path}"
+        )
+    if args.batch_size < 1:
+        raise ValueError("--batch-size must be positive.")
+    if args.num_workers < 0:
+        raise ValueError("--num-workers must be nonnegative.")
+
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Load dataset in its existing, deterministic order.
@@ -89,6 +102,10 @@ def main():
         map_location="cpu",
         weights_only=True,
     )
+    checkpoint_sha256 = hashlib.sha256()
+    with args.checkpoint_path.open("rb") as checkpoint_file:
+        for chunk in iter(lambda: checkpoint_file.read(1024 * 1024), b""):
+            checkpoint_sha256.update(chunk)
 
     teacher.load_state_dict(checkpoint, strict=True)
     teacher.eval()
@@ -147,6 +164,36 @@ def main():
         "model": "DINO ViT-S/16",
         "approach": "teacher_encoding",
         "checkpoint": str(args.checkpoint_path.resolve()),
+        "teacher_provenance": {
+            "checkpoint_name": args.checkpoint_path.name,
+            "checkpoint_sha256": checkpoint_sha256.hexdigest(),
+            "source_repository": TEACHER_SOURCE,
+            "source_model": "dino_vits16 (DeiT-S/16 / ViT-S/16)",
+            "paper": TEACHER_PAPER,
+            "pretraining_dataset": (
+                "ImageNet-1k training images; self-supervised, labels not used"
+            ),
+            "pretraining_compute_references": [
+                {
+                    "run": "DINO ViT-S/16, 100 epochs",
+                    "reported_wall_time_days": 1.75,
+                    "reported_gpu_count": 8,
+                    "derived_gpu_days": 336.0,
+                },
+                {
+                    "run": "Boosted DINO ViT-S/16, 300 epochs",
+                    "reported_wall_time_days": 2.6,
+                    "reported_gpu_count": 16,
+                    "derived_gpu_days": 998.4,
+                },
+            ],
+            "compute_attribution": (
+                "The cited repository reports these reference runs. The exact "
+                "training run corresponding to this checkpoint file has not "
+                "been verified; do not treat either compute reference as its "
+                "confirmed cost."
+            ),
+        },
         "num_parameters": n_params,
         "feature_dim": int(features.shape[1]),
         "num_samples": int(features.shape[0]),
@@ -156,6 +203,7 @@ def main():
             "ImageNet normalization"
         ),
         "feature_normalization": "None applied",
+        "feature_pooling": "CLS token; output of dino_vits16 forward",
         "shuffle": False,
     }
 
