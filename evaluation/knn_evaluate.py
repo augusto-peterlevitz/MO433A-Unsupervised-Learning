@@ -1,6 +1,4 @@
 import argparse
-import json
-import re
 from pathlib import Path
 
 import numpy as np
@@ -11,64 +9,14 @@ from data.dataloaders import load_indices, get_data
 import pandas as pd
 from tqdm import tqdm
 from models.utils import load_encoder_cost
-
-
-def load_feature_metadata(feature_dir):
-    metadata_path = feature_dir / "metadata.json"
-    if metadata_path.exists():
-        with metadata_path.open(encoding="utf-8") as file:
-            return json.load(file)
-    return {}
-
-
-def get_encoder_name(feature_dir):
-    metadata = load_feature_metadata(feature_dir)
-    if metadata.get("encoder"):
-        return str(metadata["encoder"])
-    return feature_dir.name
-
-
-def get_aggregate_encoder_name(feature_dir):
-    encoder_name = get_encoder_name(feature_dir)
-    return re.sub(r"_seed\d+$", "", encoder_name)
-
-
-def get_student_size(metadata, feature_dir):
-    student_cnn = metadata.get("student_cnn")
-    if student_cnn in {"small", "large"}:
-        return "small_cnn" if student_cnn == "small" else "larger_cnn"
-    for size_name in ("small_cnn", "larger_cnn"):
-        if size_name in feature_dir.parts:
-            return size_name
-    return None
-
-
-def get_result_directory(output_dir, feature_dir, metadata, encoder_name):
-    parts = feature_dir.parts
-    if "random_baseline" in parts:
-        baseline_index = parts.index("random_baseline")
-        if baseline_index + 1 >= len(parts):
-            raise ValueError(
-                f"Expected a student-size directory after random_baseline in {feature_dir}."
-            )
-        return output_dir / "knn_evaluation" / "random_baseline" / parts[baseline_index + 1]
-
-    approach = metadata.get("approach")
-    if approach is None and metadata.get("row"):
-        approach = {
-            "A": "random_baseline",
-            "B": "vicreg",
-            "C": "distillation",
-            "D": "teacher_encoding",
-        }.get(str(metadata["row"]).upper())
-    if approach:
-        student_size = get_student_size(metadata, feature_dir)
-        encoder_directory = student_size or re.sub(r"_seed\d+$", "", encoder_name)
-        result_dir = output_dir / "knn_evaluation" / str(approach) / encoder_directory
-        if approach == "distillation" and metadata.get("projector_type"):
-            result_dir /= f"projector_{metadata['projector_type']}"
-        return result_dir
-    return output_dir / "knn_evaluation" / encoder_name
+from evaluation.utils import (
+    get_aggregate_encoder_name,
+    get_cache_seed,
+    get_encoder_name,
+    get_result_directory,
+    load_feature_metadata,
+    resolve_feature_dirs,
+)
 
 
 def parse_args():
@@ -84,12 +32,32 @@ def parse_args():
     parser.add_argument("--min-neighbors", type=int, help="Deprecated alias for --max-neighbors.")
     parser.add_argument("--n-jobs", type=int, default=4)
     parser.add_argument(
-        "--features-dir",
-        dest="feature_dirs",
+        "--feature-dir",
         type=Path,
-        nargs="+",
         required=True,
-        help="One or more feature caches. Multiple caches are aggregated across random seeds.",
+        help="Feature-cache model directory; append seed<seed> for seeded approaches.",
+    )
+    parser.add_argument(
+        "--approach",
+        choices=("random_baseline", "vicreg", "distillation", "teacher_encoding"),
+        required=True,
+        help="One model approach to evaluate.",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        help="Seed-specific feature caches under --feature-dir (not used for teacher_encoding).",
+    )
+    parser.add_argument(
+        "--student-cnn",
+        choices=("small", "large"),
+        help="Student size (required for random_baseline, vicreg, and distillation).",
+    )
+    parser.add_argument(
+        "--projector-type",
+        choices=("mlp", "linear"),
+        help="Distillation projector type (required only for distillation).",
     )
     return parser.parse_args()
 
@@ -152,16 +120,41 @@ def main():
         args.test_pkl,
     )
 
-    if len(args.feature_dirs) == 0:
-        raise ValueError("At least one --features-dir is required.")
+    feature_dirs = resolve_feature_dirs(
+        args.feature_dir,
+        args.approach,
+        args.seeds,
+        args.student_cnn,
+        args.projector_type,
+    )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     combined_frames = []
     aggregate_output_dirs = {}
 
-    for feature_dir in args.feature_dirs:
+    for feature_dir in feature_dirs:
         if not feature_dir.exists():
             raise FileNotFoundError(f"Feature cache not found: {feature_dir}")
+
+        metadata = load_feature_metadata(feature_dir)
+        cache_approach = metadata.get("approach")
+        if cache_approach is not None and cache_approach != args.approach:
+            raise ValueError(
+                f"Expected approach {args.approach}, but {feature_dir} has "
+                f"approach {cache_approach}."
+            )
+        if args.student_cnn and metadata.get("student_cnn") not in {None, args.student_cnn}:
+            raise ValueError(
+                f"Expected student-cnn {args.student_cnn}, but {feature_dir} has "
+                f"student-cnn {metadata.get('student_cnn')}."
+            )
+        if args.projector_type:
+            cache_projector = metadata.get("projector_type", "mlp")
+            if cache_projector != args.projector_type:
+                raise ValueError(
+                    f"Expected projector {args.projector_type}, but {feature_dir} has "
+                    f"projector {cache_projector}."
+                )
 
         x_test, y_test = get_data(test_indices, feature_dir)
         results = evaluate(
@@ -175,7 +168,6 @@ def main():
 
         encoder_name = get_encoder_name(feature_dir)
         aggregate_encoder_name = get_aggregate_encoder_name(feature_dir)
-        metadata = load_feature_metadata(feature_dir)
         random_seed = metadata.get("seed")
         cost = load_encoder_cost(feature_dir)
         result_root = get_result_directory(
@@ -183,6 +175,7 @@ def main():
             feature_dir,
             metadata,
             encoder_name,
+            "knn_evaluation",
         )
         result_dir = (
             result_root / f"seed{random_seed}"

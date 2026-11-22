@@ -1,6 +1,5 @@
 import argparse
 import json
-import re
 from pathlib import Path
 
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
@@ -9,52 +8,14 @@ from sklearn.preprocessing import Normalizer, StandardScaler
 from sklearn.svm import SVC, LinearSVC
 
 from data.dataloaders import get_data, load_indices
-
-def load_feature_metadata(feature_dir):
-    metadata_path = feature_dir / "metadata.json"
-    if metadata_path.exists():
-        with metadata_path.open(encoding="utf-8") as file:
-            return json.load(file)
-    return {}
-
-
-def get_cache_seed(feature_dir, metadata):
-    if metadata.get("seed") is not None:
-        return metadata["seed"]
-    for part in reversed(feature_dir.parts):
-        if part.startswith("seed") and part[4:].isdigit():
-            return int(part[4:])
-    return None
-
-
-def get_cache_name(feature_dir, metadata):
-    if metadata.get("encoder"):
-        return str(metadata["encoder"])
-    if feature_dir.name.startswith("seed") and feature_dir.name[4:].isdigit():
-        return feature_dir.parent.name
-    return feature_dir.name
-
-
-def get_approach(metadata):
-    approach = metadata.get("approach")
-    if approach is None and metadata.get("row"):
-        approach = {
-            "A": "random_baseline",
-            "B": "vicreg",
-            "C": "distillation",
-            "D": "teacher_encoding",
-        }.get(str(metadata["row"]).upper())
-    return approach
-
-
-def get_student_size(metadata, feature_dir):
-    student_cnn = metadata.get("student_cnn")
-    if student_cnn in {"small", "large"}:
-        return "small_cnn" if student_cnn == "small" else "larger_cnn"
-    for size_name in ("small_cnn", "larger_cnn"):
-        if size_name in feature_dir.parts:
-            return size_name
-    return None
+from evaluation.utils import (
+    get_aggregate_encoder_name,
+    get_approach,
+    get_cache_seed,
+    get_encoder_name,
+    get_student_size,
+    load_feature_metadata,
+)
 
 
 def parse_args():
@@ -186,7 +147,9 @@ def main():
         n_jobs=args.n_jobs,
     )
 
-    cache_name = re.sub(r"_seed\d+$", "", get_cache_name(args.feature_dir, metadata))
+    cache_name = get_aggregate_encoder_name(
+        get_encoder_name(args.feature_dir, metadata)
+    )
     seed = get_cache_seed(args.feature_dir, metadata)
     student_size = get_student_size(metadata, args.feature_dir)
     if approach and student_size:
