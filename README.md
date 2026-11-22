@@ -34,7 +34,7 @@ and 1 (for example, `0.20` for 20%). Both pickle files contain dataset indices.
 Extract DINO ViT-S/16 features and labels for EuroSAT:
 
 ```bash
-python3 -m scripts.dino_extract_features \
+python3 -m evaluation.dino_extract_features \
   --eurosat-root datasets/EuroSAT_RGB \
   --checkpoint-path dino_deitsmall16_pretrain.pth \
   --output-dir datasets/features/dino_vits16
@@ -71,6 +71,42 @@ Run and feature-cache metadata use `approach` identifiers instead of row letters
 The row letters are retained below as project-protocol terminology. Use the
 approach identifier in configs, feature metadata, and CLI options that select
 an experiment.
+
+## Row D: Frozen Teacher Encoding
+Extract the EuroSAT representation from the frozen, pretrained DINO ViT-S/16
+teacher for use as the row-D ceiling and cost reference:
+
+```bash
+python3 -m evaluation.dino_extract_features \
+  --eurosat-root datasets/EuroSAT_RGB \
+  --checkpoint-path dino_deitsmall16_pretrain.pth \
+  --output-dir datasets/features/dino_vits16 \
+  --batch-size 64 \
+  --num-workers 4
+```
+
+This loads the official DINO `dino_vits16` architecture through `torch.hub`,
+restores the local checkpoint with strict state loading, freezes all teacher
+parameters, and performs deterministic teacher-side preprocessing with
+`Resize(256)`, `CenterCrop(224)`, and ImageNet normalization. It saves the
+384-dimensional CLS-token features, labels, and dataset indices in
+`datasets/features/dino_vits16/{features.npy,labels.npy,indices.npy}`. The cache
+also contains `metadata.json` with the checkpoint path and SHA-256 digest, DINO
+source and paper, pretraining dataset, feature pooling, feature dimension, and
+published compute references.
+
+Row D does not have student seeds; the same frozen teacher extraction is used
+for every probe. Use the cache with the SVM and KNN evaluators and include it in
+the representation-diagnostics comparison. Before distillation or reporting
+row-D accuracy, sanity-check the teacher with k-NN and k-means as described in
+the project protocol. Near-chance k-NN accuracy, near-zero embedding variation,
+or a k-means NMI near zero can indicate incorrect weights, preprocessing,
+pooling, or collapse and should be diagnosed before further experiments.
+
+The teacher is an upper-size-and-cost reference, not a trained student. In
+reports, distinguish its published pretraining compute from the local
+checkpoint's exact training history and record teacher forward GPU-hours
+separately for row C.
 
 ## Row B: VICReg Student Training
 Run the direct-training baseline for one named variant of the project's
