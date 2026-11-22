@@ -37,12 +37,12 @@ Extract DINO ViT-S/16 features and labels for EuroSAT:
 python3 -m evaluation.dino_extract_features \
   --eurosat-root datasets/EuroSAT_RGB \
   --checkpoint-path dino_deitsmall16_pretrain.pth \
-  --output-dir datasets/features/dino_vits16
+  --output-dir outputs/features/dino_vits16
 ```
 
 All arguments are optional. Defaults are `datasets/EuroSAT_RGB` for the dataset,
 `dino_deitsmall16_pretrain.pth` for the checkpoint,
-`datasets/features/dino_vits16` for output, a batch size of `64`, and `4`
+`outputs/features/dino_vits16` for output, a batch size of `64`, and `4`
 data-loading workers. The saved `metadata.json` records the checkpoint's
 resolved path, filename, SHA-256 digest, DINO source repository and paper,
 pretraining dataset, feature pooling, and published compute references.
@@ -80,7 +80,7 @@ teacher for use as the row-D ceiling and cost reference:
 python3 -m evaluation.dino_extract_features \
   --eurosat-root datasets/EuroSAT_RGB \
   --checkpoint-path dino_deitsmall16_pretrain.pth \
-  --output-dir datasets/features/dino_vits16 \
+  --output-dir outputs/features/dino_vits16 \
   --batch-size 64 \
   --num-workers 4
 ```
@@ -90,7 +90,7 @@ restores the local checkpoint with strict state loading, freezes all teacher
 parameters, and performs deterministic teacher-side preprocessing with
 `Resize(256)`, `CenterCrop(224)`, and ImageNet normalization. It saves the
 384-dimensional CLS-token features, labels, and dataset indices in
-`datasets/features/dino_vits16/{features.npy,labels.npy,indices.npy}`. The cache
+`outputs/features/dino_vits16/{features.npy,labels.npy,indices.npy}`. The cache
 also contains `metadata.json` with the checkpoint path and SHA-256 digest, DINO
 source and paper, pretraining dataset, feature pooling, feature dimension, and
 published compute references.
@@ -117,7 +117,7 @@ python3 -m training.train_vicreg \
   --config configs/vicreg.json \
   --student-cnn small \
   --seeds 42 43 44 \
-  --output-dir checkpoints/vicreg
+  --output-dir outputs/checkpoints/vicreg
 ```
 
 This runs three seeds for the smaller variant. For the larger variant, run:
@@ -127,7 +127,7 @@ python3 -m training.train_vicreg \
   --config configs/vicreg.json \
   --student-cnn large \
   --seeds 42 43 \
-  --output-dir checkpoints/vicreg
+  --output-dir outputs/checkpoints/vicreg
 ```
 
 Both use VICReg's two-view augmentation and loss, train on the unlabeled
@@ -135,7 +135,7 @@ training split, and use the `StudentCNN` backbone from `models/student_cnn.py`
 with no classifier head. Hyperparameters such as epochs, batch size, learning
 rate, and data paths come from the base config. Each run saves its config,
 checkpoint, backbone weights, and TensorBoard logs under
-`checkpoints/vicreg/{small_cnn,larger_cnn}/seed<seed>/`. Use
+`outputs/checkpoints/vicreg/{small_cnn,larger_cnn}/seed<seed>/`. Use
 `--student-cnn small` and `--student-cnn large` in separate invocations. These
 select the explicit `SmallStudent` and `LargerStudent` classes, respectively.
 The project protocol requires at least three seeds for `small` and two for
@@ -173,7 +173,7 @@ python3 -m training.train_distillation \
   --student-cnn small \
   --seeds 42 43 44 \
   --teacher-checkpoint dino_deitsmall16_pretrain.pth \
-  --output-dir checkpoints/distillation
+  --output-dir outputs/checkpoints/distillation
 ```
 
 For the larger student, use `--student-cnn large --seeds 42 43`. Each run
@@ -182,11 +182,11 @@ augmented view (student at 64px, teacher resized to 224px), and minimizes cosine
 distance between the teacher features and an MLP projection of the student
 features. Labels are ignored. It saves the student backbone, per-epoch loss,
 configuration, teacher-forward timing, and TensorBoard event logs under
-`checkpoints/distillation/{small_cnn,larger_cnn}/seed<seed>/`. Open the logs
+`outputs/checkpoints/distillation/{small_cnn,larger_cnn}/seed<seed>/`. Open the logs
 for one run with:
 
 ```bash
-tensorboard --logdir checkpoints/distillation/small_cnn/seed42/tensorboard
+tensorboard --logdir outputs/checkpoints/distillation/small_cnn/seed42/tensorboard
 ```
 
 TensorBoard records batch and epoch distillation loss, learning rate, and epoch
@@ -205,7 +205,7 @@ python3 -m training.train_distillation \
   --seeds 42 43 44 \
   --projector-type linear \
   --teacher-checkpoint dino_deitsmall16_pretrain.pth \
-  --output-dir checkpoints/distillation
+  --output-dir outputs/checkpoints/distillation
 
 python3 -m training.train_distillation \
   --config configs/vicreg.json \
@@ -213,13 +213,13 @@ python3 -m training.train_distillation \
   --seeds 42 43 \
   --projector-type linear \
   --teacher-checkpoint dino_deitsmall16_pretrain.pth \
-  --output-dir checkpoints/distillation
+  --output-dir outputs/checkpoints/distillation
 ```
 
 The linear runs are saved separately under
-`checkpoints/distillation/ablation/projector_linear/{small_cnn,larger_cnn}/seed<seed>/`;
+`outputs/checkpoints/distillation/ablation/projector_linear/{small_cnn,larger_cnn}/seed<seed>/`;
 the default MLP runs remain under
-`checkpoints/distillation/{small_cnn,larger_cnn}/seed<seed>/`. Extract
+`outputs/checkpoints/distillation/{small_cnn,larger_cnn}/seed<seed>/`. Extract
 distillation features for both settings; the extractor reads each run's
 `distillation.json` and separates caches by projector type:
 
@@ -235,12 +235,12 @@ python3 -m evaluation.extract_features \
   --approach distillation \
   --student-cnn small \
   --seeds 42 43 44 \
-  --checkpoint-root checkpoints/distillation/ablation/projector_linear
+  --checkpoint-root outputs/checkpoints/distillation/ablation/projector_linear
 ```
 
 The default feature-cache roots are
-`datasets/features/distillation/projector_mlp/<student-size>/seed<seed>/` and
-`datasets/features/distillation/projector_linear/<student-size>/seed<seed>/`.
+`outputs/features/distillation/projector_mlp/<student-size>/seed<seed>/` and
+`outputs/features/distillation/projector_linear/<student-size>/seed<seed>/`.
 Repeat extraction with `--student-cnn large --seeds 42 43` for both projector
 settings. The evaluator outputs also keep projector types in separate
 directories. Use the same VICReg-tuned SVM parameter files and KNN settings
@@ -257,57 +257,57 @@ seed aggregates separate:
 
 ```bash
 python3 -m evaluation.knn_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach vicreg \
   --student-cnn small \
   --seeds 42 43 44 \
-  --output-dir runs/probes
+  --output-dir outputs/runs/probes
 
 python3 -m evaluation.knn_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach distillation \
   --student-cnn small \
   --projector-type mlp \
   --seeds 42 43 44 \
-  --output-dir runs/probes
+  --output-dir outputs/runs/probes
 
 python3 -m evaluation.knn_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach distillation \
   --student-cnn small \
   --projector-type linear \
   --seeds 42 43 44 \
-  --output-dir runs/probes
+  --output-dir outputs/runs/probes
 ```
 
 For SVM, pass the same VICReg-tuned parameter file:
 
 ```bash
 python3 -m evaluation.svm_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach vicreg \
   --student-cnn small \
   --seeds 42 43 44 \
-  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
-  --output-dir runs/probes
+  --params outputs/runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
+  --output-dir outputs/runs/probes
 
 python3 -m evaluation.svm_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach distillation \
   --student-cnn small \
   --projector-type mlp \
   --seeds 42 43 44 \
-  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
-  --output-dir runs/probes
+  --params outputs/runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
+  --output-dir outputs/runs/probes
 
 python3 -m evaluation.svm_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach distillation \
   --student-cnn small \
   --projector-type linear \
   --seeds 42 43 44 \
-  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
-  --output-dir runs/probes
+  --params outputs/runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
+  --output-dir outputs/runs/probes
 ```
 
 Repeat with large-student seeds `42 43` for all three encoders. This yields
@@ -325,7 +325,7 @@ python3 -m evaluation.extract_features \
 ```
 
 This reads the MLP `distillation` checkpoints by default and stores features under
-`datasets/features/distillation/projector_mlp/small_cnn/seed<seed>/`. Use
+`outputs/features/distillation/projector_mlp/small_cnn/seed<seed>/`. Use
 `--student-cnn large --seeds 42 43` for the larger variant. The teacher is
 loaded from the local checkpoint; DINO repository code must be available to
 `torch.hub` on the first run.
@@ -343,15 +343,15 @@ training-subset pickle, model architecture, batch size, worker count, and checkp
 location from that config. It uses `datasets/eurosat_test_subset.pkl` for the
 test indices, loads `student_backbone.pth` from the configured output
 directory, and writes the cache to
-`datasets/features/vicreg/<small_cnn|larger_cnn>/seed<seed>`.
+`outputs/features/vicreg/<small_cnn|larger_cnn>/seed<seed>`.
 
 To override paths or extraction settings:
 
 ```bash
 python3 -m evaluation.extract_features \
-  --config checkpoints/vicreg/small_cnn/seed42/vicreg.json \
-  --checkpoint-path checkpoints/vicreg/small_cnn/seed42/student_backbone.pth \
-  --output-dir datasets/features/vicreg/small_cnn/seed42 \
+  --config outputs/checkpoints/vicreg/small_cnn/seed42/vicreg.json \
+  --checkpoint-path outputs/checkpoints/vicreg/small_cnn/seed42/student_backbone.pth \
+  --output-dir outputs/features/vicreg/small_cnn/seed42 \
   --batch-size 64 \
   --num-workers 4
 ```
@@ -379,7 +379,7 @@ python3 -m training.random_baseline \
 ```
 
 This creates one deterministic feature cache per `(student variant, seed)` under
-`datasets/features/random_baseline/{small_cnn,larger_cnn}/seed<seed>`. The two
+`outputs/features/random_baseline/{small_cnn,larger_cnn}/seed<seed>`. The two
 architectures are selected with `--student-cnn small` and `--student-cnn large`.
 The models are randomly
 initialized, receive no pretraining, and are kept in `eval()` mode during
@@ -396,14 +396,14 @@ stratified CV and searches a small C/gamma grid for the RBF kernel:
 
 ```bash
 python3 -m evaluation.svm_gridsearch \
-  --features-dir datasets/features/vicreg/small_cnn/seed42 \
+  --features-dir outputs/features/vicreg/small_cnn/seed42 \
   --kernel rbf \
   --seed 42 \
-  --output-dir runs/probes
+  --output-dir outputs/runs/probes
 ```
 
 The grid search uses one designated VICReg cache and saves the fixed parameters
-under `runs/probes/svm_gridsearch/vicreg/<student-size>/` (including a seed
+under `outputs/runs/probes/svm_gridsearch/vicreg/<student-size>/` (including a seed
 directory when the cache identifies one). `--seed` controls the cross-validation
 split and `LinearSVC` randomness. Repeat with `--kernel linear` for the linear SVM.
 Use the same parameter file for every seed and encoder; do not tune separately
@@ -411,20 +411,20 @@ for each seed.
 
 ```bash
 python3 -m evaluation.svm_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach random_baseline \
   --student-cnn small \
   --seeds 42 43 44 \
-  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
-  --output-dir runs/probes
+  --params outputs/runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json \
+  --output-dir outputs/runs/probes
 ```
 
 `evaluation.svm_evaluate` supports both `linear` and `rbf` parameter files and
 reports test accuracy at 1%, 10%, 50%, and 100% of the labeled training set,
 for each draw in the training-subset pickle. It saves per-seed results and
-summaries under `runs/probes/svm_evaluation/<approach>/<student-size>/<seed>/<kernel>/`
+summaries under `outputs/runs/probes/svm_evaluation/<approach>/<student-size>/<seed>/<kernel>/`
 and pooled seed/draw results under
-`runs/probes/svm_evaluation/<approach>/<student-size>/aggregate/<kernel>/`. The pooled
+`outputs/runs/probes/svm_evaluation/<approach>/<student-size>/aggregate/<kernel>/`. The pooled
 summary reports the mean and standard deviation across seeds and labeled
 subset draws. The repeated identical 100% draws are counted once per seed in
 the pooled summary. Parameter counts and cost metadata are read from
@@ -439,12 +439,12 @@ per-seed and aggregate summaries:
 
 ```bash
 python3 -m evaluation.svm_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach random_baseline \
   --student-cnn small \
   --seeds 42 43 44 \
-  --params runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json \
-  --output-dir runs/probes
+  --params outputs/runs/probes/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json \
+  --output-dir outputs/runs/probes
 ```
 
 Use the RBF parameter JSON in the evaluation command instead for RBF results.
@@ -453,7 +453,7 @@ Plot the nested summaries with:
 ```bash
 python3 -m evaluation.plot_label_efficiency \
   --probe linear \
-  --input-dir runs/probes/svm_evaluation
+  --input-dir outputs/runs/probes/svm_evaluation
 ```
 
 The standalone `evaluation.plot_label_efficiency` script supports
@@ -465,11 +465,11 @@ to generate a log-scale curve from those summaries:
 
 ```bash
 python3 -m evaluation.knn_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach vicreg \
   --student-cnn small \
   --seeds 42 \
-  --output-dir runs/probes
+  --output-dir outputs/runs/probes
 ```
 
 For row A, pass every seed cache in the same command to aggregate both random
@@ -477,14 +477,14 @@ initializations and labeled-subset draws:
 
 ```bash
 python3 -m evaluation.knn_evaluate \
-  --feature-dir datasets/features \
+  --feature-dir outputs/features \
   --approach random_baseline \
   --student-cnn small \
   --seeds 42 43 44 \
-  --output-dir runs/probes
+  --output-dir outputs/runs/probes
 ```
 
-Results are saved beneath `runs/probes/knn_evaluation/`. Row-A per-seed
+Results are saved beneath `outputs/runs/probes/knn_evaluation/`. Row-A per-seed
 results and summaries go into directories such as
 `random_baseline/small_cnn/seed42/`; the pooled seed/draw results are in the
 sibling `random_baseline/small_cnn/aggregate/` directory. The KNN probe uses
@@ -492,7 +492,7 @@ cosine distance and, for every labeled subset and draw, chooses
 `k = min(20, minimum labeled examples per class)`. Feature L2 normalization
 and StandardScaler preprocessing are fitted consistently within each probe
 training split. To create a label-efficiency plot from the nested KNN summaries,
-run `python3 -m evaluation.plot_label_efficiency --probe knn --input-dir runs/probes`.
+run `python3 -m evaluation.plot_label_efficiency --probe knn --input-dir outputs/runs/probes`.
 
 ## Representation Diagnostics
 Run the Section 3.7 diagnostics on the held-out test features for every
@@ -500,9 +500,9 @@ encoder. Repeat `--features-dir` once per cache:
 
 ```bash
 python3 -m evaluation.representation_diagnostics \
-  --features-dir datasets/features/vicreg/small_cnn/seed42 \
-  --features-dir datasets/features/dino_vits16 \
-  --output-dir runs/probes/representation_diagnostics
+  --features-dir outputs/features/vicreg/small_cnn/seed42 \
+  --features-dir outputs/features/dino_vits16 \
+  --output-dir outputs/runs/probes/representation_diagnostics
 ```
 
 The script uses the same held-out test indices for all encoders, L2-normalizes

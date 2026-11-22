@@ -68,7 +68,7 @@ def parse_args():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("checkpoints/distillation"),
+        default=Path("outputs/checkpoints/distillation"),
         help="Root for size- and seed-specific runs.",
     )
     return parser.parse_args()

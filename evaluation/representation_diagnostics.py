@@ -31,12 +31,12 @@ def parse_args():
         default=Path("datasets/eurosat_test_subset.pkl"),
         help="Pickle containing held-out test indices.",
     )
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, default=Path("outputs/runs/probes"))
     parser.add_argument("--perplexity", type=float, default=30.0)
     parser.add_argument("--random-state", type=int, default=42)
     return parser.parse_args()
 
-def fit_kmeans(features, labels, n_clusters, random_state, n_init=10, random_state=None):
+def fit_kmeans(features, labels, n_clusters, random_state, n_init=10):
     
     clusters = KMeans(
         n_clusters=n_clusters,

@@ -35,7 +35,7 @@ def parse_args():
         type=Path,
         default=Path("datasets/eurosat_test_subset.pkl"),
     )
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, default=Path("outputs/runs/probes"))
     parser.add_argument("--params", type=Path, required=True)
     parser.add_argument(
         "--feature-dir",

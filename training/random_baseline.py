@@ -20,7 +20,7 @@ def parse_args():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("datasets/features/random_baseline"),
+        default=Path("outputs/features/random_baseline"),
         help="Root directory for row-A feature caches.",
     )
     parser.add_argument("--student-cnn", choices=("small", "large"), required=True)

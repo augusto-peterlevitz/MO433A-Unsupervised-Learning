@@ -187,7 +187,7 @@ def main():
         )
         output_dir = args.output_dir
         if output_dir is None:
-            output_dir = Path("datasets/features") / approach
+            output_dir = Path("outputs/features") / approach
             if projector_type is not None:
                 output_dir /= f"projector_{projector_type}"
             size_name = (
@@ -215,8 +215,8 @@ def main():
 
     student_cnn = args.student_cnn or base_config.student_cnn
     size_name = "small_cnn" if student_cnn == "small" else "larger_cnn"
-    checkpoint_root = args.checkpoint_root or Path("checkpoints") / approach
-    feature_root = args.output_dir or Path("datasets/features") / approach
+    checkpoint_root = args.checkpoint_root or Path("outputs/checkpoints") / approach
+    feature_root = args.output_dir or Path("outputs/features") / approach
 
     for seed in args.seeds:
         run_dir = checkpoint_root / size_name / f"seed{seed}"

@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument(
         "--input-dir",
         type=Path,
-        default=Path("runs/probes"),
+        default=Path("outputs/runs/probes"),
         help="Directory searched for probe summary CSV files.",
     )
     parser.add_argument(
@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("runs/probes/label_efficiency"),
+        default=Path("outputs/runs/probes/label_efficiency"),
     )
     return parser.parse_args()
 

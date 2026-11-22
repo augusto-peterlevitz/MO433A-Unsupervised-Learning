@@ -10,5 +10,5 @@
   "weight_decay": 0.0001,
   "num_workers": 8,
   "seed": 42,
-  "output_dir": "checkpoints/vicreg"
+  "output_dir": "outputs/checkpoints/vicreg"
 }

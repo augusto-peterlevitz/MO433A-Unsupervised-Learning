@@ -37,7 +37,7 @@ class TrainingConfig:
     weight_decay: float = 1e-4
     num_workers: int = 8
     seed: int = 42
-    output_dir: Path = Path("checkpoints/vicreg")
+    output_dir: Path = Path("outputs/checkpoints/vicreg")
 
     def validate(self):
         if (
@@ -340,7 +340,7 @@ def main():
     if any(seed < 0 for seed in args.seeds):
         raise ValueError("--seeds must contain nonnegative integers.")
 
-    output_root = args.output_dir or Path("checkpoints/vicreg")
+    output_root = args.output_dir or Path("outputs/checkpoints/vicreg")
     size_name = "small_cnn" if args.student_cnn == "small" else "larger_cnn"
     for seed in args.seeds:
         config = replace(

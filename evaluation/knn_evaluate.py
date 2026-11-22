@@ -26,7 +26,7 @@ def parse_args():
 
     parser.add_argument("--train-pkl", type=Path, default=Path("datasets/eurosat_train_subsets.pkl"))
     parser.add_argument("--test-pkl", type=Path, default=Path("datasets/eurosat_test_subset.pkl"))
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, default=Path("outputs/runs/probes"))
     parser.add_argument("--n-classes", type=int, help="Deprecated; retained for backward-compatible commands.")
     parser.add_argument("--max-neighbors", type=int, default=20, help="Upper bound for k (default: 20).")
     parser.add_argument("--min-neighbors", type=int, help="Deprecated alias for --max-neighbors.")
