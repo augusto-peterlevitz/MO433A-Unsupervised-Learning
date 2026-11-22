@@ -541,11 +541,18 @@ All encoders use the same t-SNE perplexity and random seed; override them with
 The repository provides Make targets that run the project steps while preserving
 the `outputs/checkpoints`, `outputs/features`, and `outputs/runs/probes` layout.
 
+### Docker targets
 
 For running all experiments at once, follow these steps:
 
-1. Create and activate conda environment (if not created)
+1. Build and run the environment:
+```bash
+make docker-build
+make docker-run
+```
 
+
+Alternativally you can use conda environment (if not created):
   ```bash
   conda create -n mo433 python=3.8.10
   conda activate mo433

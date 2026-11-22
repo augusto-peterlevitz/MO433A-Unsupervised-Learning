@@ -12,7 +12,7 @@ EUROSAT_URL := https://madm.dfki.de/files/sentinel/EuroSAT.zip
 SEEDS_SMALL := 42 43 44
 SEEDS_LARGE := 42 43
 
-.PHONY: help download-assets download-dino download-eurosat generate-subsets teacher-features random-baseline \
+.PHONY: help docker-build docker-run download-assets download-dino download-eurosat generate-subsets teacher-features random-baseline \
         vicreg-small vicreg-large train-vicreg \
         distillation-small distillation-large train-distillation \
         distillation-small-linear distillation-large-linear distillation-ablation \
@@ -24,6 +24,8 @@ SEEDS_LARGE := 42 43
 
 help:
 	@echo "Available Make targets:"
+	@echo "  docker-build              Build the project Docker image"
+	@echo "  docker-run                Start an interactive container with the repository mounted"
 	@echo "  download-dino             Download pretrained DINO ViT-S/16 weights"
 	@echo "  download-eurosat          Download and extract the EuroSAT RGB dataset"
 	@echo "  download-assets           Download DINO weights and EuroSAT dataset"
@@ -47,6 +49,15 @@ help:
 	@echo "  plots                     Plot all label-efficiency curves"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
 	@echo "  clean                     Remove generated files under outputs/"
+
+docker-build:
+	docker build -t mo433-unsupervised .
+
+docker-run:
+	docker run --rm -it \
+	  -v "$$PWD:/workspace" \
+	  -w /workspace \
+	  mo433-unsupervised
 
 download-dino:
 	@if [ -f $(DINO_CHECKPOINT) ]; then echo "DINO weights already exist: $(DINO_CHECKPOINT)"; else mkdir -p $(@D); curl -L --fail --retry 3 -o $(DINO_CHECKPOINT) $(DINO_WEIGHTS_URL); fi
