@@ -7,10 +7,12 @@ EUROSAT_ROOT := datasets/EuroSAT_RGB
 TRAIN_PKL := datasets/eurosat_train_subsets.pkl
 TEST_PKL := datasets/eurosat_test_subset.pkl
 DINO_CHECKPOINT := dino_deitsmall16_pretrain.pth
+DINO_WEIGHTS_URL := https://dl.fbaipublicfiles.com/dino/dino_deitsmall16_pretrain/dino_deitsmall16_pretrain.pth
+EUROSAT_URL := https://madm.dfki.de/files/sentinel/EuroSAT.zip
 SEEDS_SMALL := 42 43 44
 SEEDS_LARGE := 42 43
 
-.PHONY: help generate-subsets teacher-features random-baseline \
+.PHONY: help download-assets download-dino download-eurosat generate-subsets teacher-features random-baseline \
         vicreg-small vicreg-large train-vicreg \
         distillation-small distillation-large train-distillation \
         distillation-small-linear distillation-large-linear distillation-ablation \
@@ -22,6 +24,9 @@ SEEDS_LARGE := 42 43
 
 help:
 	@echo "Available Make targets:"
+	@echo "  download-dino             Download pretrained DINO ViT-S/16 weights"
+	@echo "  download-eurosat          Download and extract the EuroSAT RGB dataset"
+	@echo "  download-assets           Download DINO weights and EuroSAT dataset"
 	@echo "  generate-subsets          Generate EuroSAT training/test subset indices"
 	@echo "  random-baseline           Train/extract random-initialization baselines (row A)"
 	@echo "  train-vicreg              Train VICReg small and large students (row B)"
@@ -42,6 +47,16 @@ help:
 	@echo "  plots                     Plot all label-efficiency curves"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
 	@echo "  clean                     Remove generated files under outputs/"
+
+download-dino:
+	@if [ -f $(DINO_CHECKPOINT) ]; then echo "DINO weights already exist: $(DINO_CHECKPOINT)"; else mkdir -p $(@D); curl -L --fail --retry 3 -o $(DINO_CHECKPOINT) $(DINO_WEIGHTS_URL); fi
+
+download-eurosat:
+	@mkdir -p datasets
+	@if [ -d $(EUROSAT_ROOT) ] && [ -n "$$(find $(EUROSAT_ROOT) -mindepth 1 -type d -print -quit)" ]; then echo "EuroSAT dataset already exists: $(EUROSAT_ROOT)"; else curl -L --fail --retry 3 -o datasets/EuroSAT.zip $(EUROSAT_URL); unzip -q -o datasets/EuroSAT.zip -d datasets; if [ -d datasets/2750 ] && [ ! -e $(EUROSAT_ROOT) ]; then ln -s 2750 $(EUROSAT_ROOT); fi; fi
+
+
+download-assets: download-dino download-eurosat
 
 generate-subsets:
 	$(PYTHON) -m data.generate_subsets \

@@ -12,6 +12,26 @@ python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
 
+## Download required assets
+Download both the EuroSAT RGB dataset and the pretrained DINO ViT-S/16 weights
+with:
+
+```bash
+make download-assets
+```
+
+To download only one asset:
+
+```bash
+make download-eurosat
+make download-dino
+```
+
+The EuroSAT archive is downloaded into `datasets/EuroSAT.zip` and extracted
+under `datasets/`. The Make target exposes the class folders at
+`datasets/EuroSAT_RGB`. The DINO checkpoint is saved as
+`dino_deitsmall16_pretrain.pth` in the repository root.
+
 
 ## Subset Generation
 Generate labeled EuroSAT subset indices and save them to a pickle file:
@@ -504,13 +524,25 @@ For running all experiments at once, follow these steps:
   python3 -m pip install -r requirements.txt
   ```
 
-2. Create the subsets (if not created):
+2. Download the EuroSAT RGB dataset (if now downloaded):
 
- ```
- make generate-subsets
- ```
+```bash
+make download-eurosat
+```
+ 
+3. Download the pretrained DINO ViT-S/16 weights (if now downloaded):
 
-3. Run all the projects experiments at once:
+```bash
+make download-dino
+````
+
+4. Create the subsets (if not created):
+
+```bash
+make generate-subsets
+```
+
+5. Run all the project experiments at once:
 
 ```bash
 make run-experiments
