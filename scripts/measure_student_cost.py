@@ -3,7 +3,7 @@ import time
 import torch
 from fvcore.nn import FlopCountAnalysis
 
-from models.student_cnn import StudentCNN
+from models.student_cnn import build_student
 
 
 def count_parameters(model):
@@ -38,8 +38,8 @@ def main():
     )
     print("Device:", device)
 
-    for name, width in [("small", 0.5), ("large", 1.0)]:
-        model = StudentCNN(width_mult=width).to(device).eval()
+    for name in ("small", "large"):
+        model = build_student(name).to(device).eval()
         x = torch.randn(1, 3, 96, 96, device=device)
 
         flops = FlopCountAnalysis(model, x)

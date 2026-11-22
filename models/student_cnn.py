@@ -1,7 +1,7 @@
 
 import torch
 import torch.nn as nn
-
+from tqdm import tqdm
 
 class ConvBlock(nn.Module):
     """Two convolution layers with normalization and ReLU."""
@@ -45,23 +45,14 @@ class StudentCNN(nn.Module):
     No classification head is included.
     """
 
-    def __init__(self, width_mult=1.0):
+    def __init__(self, base_channels):
         super().__init__()
 
-        if width_mult <= 0:
-            raise ValueError("width_mult must be positive")
-
-        # The architecture changes only through this width multiplier.
-        base = int(32 * width_mult)
-
-        if base < 1:
-            raise ValueError("width_mult is too small")
-
         channels = [
-            base,
-            base * 2,
-            base * 4,
-            base * 8,
+            base_channels,
+            base_channels * 2,
+            base_channels * 4,
+            base_channels * 8,
         ]
 
         self.stem = nn.Sequential(
@@ -108,3 +99,72 @@ class StudentCNN(nn.Module):
 
     def forward(self, x):
         return self.forward_features(x)
+    
+    def load_weights(self, checkpoint_path):
+        """Load weights from a checkpoint file."""
+        state_dict = torch.load(
+            checkpoint_path,
+            map_location="cpu",
+            weights_only=True,
+        )
+        self.load_state_dict(state_dict, strict=True)
+
+    def extract_features(self, dataloader, device):
+        
+        feature_batches = []
+        label_batches = []
+        
+        self.eval()
+        self.requires_grad_(False)
+
+        print("Extracting features...")
+        with torch.inference_mode():
+            for batch_idx, (images, labels) in tqdm(enumerate(dataloader), total=len(dataloader)):
+                images = images.to(device, non_blocking=True)
+                features = self(images)
+                if features.ndim != 2:
+                    raise RuntimeError(
+                        f"Expected a 2D feature matrix, got {tuple(features.shape)}."
+                    )
+                if not torch.isfinite(features).all():
+                    raise RuntimeError("Non-finite VICReg features detected.")
+
+                feature_batches.append(features.cpu())
+                label_batches.append(labels.cpu())
+        
+        if not feature_batches:
+            raise RuntimeError("No features were extracted; the dataset is empty.")
+
+        return (
+            torch.cat(feature_batches).numpy(),
+            torch.cat(label_batches).numpy(),
+        )
+
+
+class SmallStudent(StudentCNN):
+    """Narrow student variant with a 128-dimensional feature vector."""
+
+    def __init__(self):
+        super().__init__(base_channels=16)
+
+
+class LargerStudent(StudentCNN):
+    """Wider student variant with a 256-dimensional feature vector."""
+
+    def __init__(self):
+        super().__init__(base_channels=32)
+
+
+def build_student(student_cnn):
+    """Construct a named student architecture."""
+    architectures = {
+        "small": SmallStudent,
+        "large": LargerStudent,
+    }
+    try:
+        architecture = architectures[student_cnn]
+    except KeyError as error:
+        raise ValueError(
+            f"Unsupported student CNN {student_cnn!r}; choose 'small' or 'large'."
+        ) from error
+    return architecture()

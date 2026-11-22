@@ -18,7 +18,8 @@ from lightly.loss import VICRegLoss
 from lightly.transforms.vicreg_transform import VICRegTransform
 from tqdm import tqdm
 
-from models.student_cnn import StudentCNN
+from data.dataloaders import UnlabeledDataset
+from models.student_cnn import build_student
 from models.vicreg import VICRegModel
 from data.eurosat import EuroSAT
 
@@ -28,14 +29,15 @@ class TrainingConfig:
     experiment_name: str = "vicreg_training"
     dataset_root: Path = Path("datasets/EuroSAT_RGB")
     subsets_path: Path = Path("datasets/eurosat_train_subsets.pkl")
-    width_mult: float = 1.0
+    student_cnn: str = "large"
+    approach: str = "vicreg"
     batch_size: int = 64
     epochs: int = 30
     learning_rate: float = 1e-3
     weight_decay: float = 1e-4
     num_workers: int = 8
     seed: int = 42
-    output_dir: Path = Path("checkpoints/vicreg_width_1.0")
+    output_dir: Path = Path("checkpoints/vicreg")
 
     def validate(self):
         if (
@@ -51,8 +53,20 @@ class TrainingConfig:
                 "epochs and batch_size must be positive; "
                 "num_workers must be nonnegative"
             )
-        if self.width_mult <= 0 or self.learning_rate <= 0:
-            raise ValueError("width_mult and learning_rate must be positive")
+        if self.student_cnn not in {"small", "large"}:
+            raise ValueError("student_cnn must be 'small' or 'large'")
+        if self.approach not in {
+            "distillation",
+            "vicreg",
+            "random_baseline",
+            "teacher_encoding",
+        }:
+            raise ValueError(
+                "approach must be one of: distillation, vicreg, "
+                "random_baseline, teacher_encoding"
+            )
+        if self.learning_rate <= 0:
+            raise ValueError("learning_rate must be positive")
         if self.weight_decay < 0:
             raise ValueError("weight_decay must be nonnegative")
 
@@ -63,6 +77,14 @@ def load_config(path):
     if not isinstance(values, dict):
         raise ValueError("Training configuration must be a JSON object")
 
+    if "row" in values and "approach" not in values:
+        legacy_row = values.pop("row")
+        legacy_approaches = {"B": "vicreg", "C": "distillation"}
+        try:
+            values["approach"] = legacy_approaches[legacy_row]
+        except KeyError as error:
+            raise ValueError(f"Unsupported legacy row value: {legacy_row!r}") from error
+
     config_fields = {field.name: field for field in fields(TrainingConfig)}
     unknown_fields = set(values) - set(config_fields)
     if unknown_fields:
@@ -70,9 +92,9 @@ def load_config(path):
         raise ValueError(f"Unknown training configuration fields: {names}")
 
     path_fields = {"dataset_root", "subsets_path", "output_dir"}
-    string_fields = {"experiment_name"}
+    string_fields = {"experiment_name", "approach", "student_cnn"}
     integer_fields = {"batch_size", "epochs", "num_workers", "seed"}
-    float_fields = {"width_mult", "learning_rate", "weight_decay"}
+    float_fields = {"learning_rate", "weight_decay"}
     for name, value in values.items():
         if name in path_fields:
             if not isinstance(value, str):
@@ -107,6 +129,8 @@ def parse_args():
 
 def train(config):
     random.seed(config.seed)
+    if config.approach != "vicreg":
+        raise ValueError("training.train_vicreg requires approach='vicreg'.")
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
 
@@ -125,9 +149,11 @@ def train(config):
     train_indices = train_subsets[(1.0, 0)]
     print(f"Number of training images: {len(train_indices)}")
 
-    dataset = EuroSAT(
-        root=config.dataset_root,
-        transform=VICRegTransform(input_size=64),
+    dataset = UnlabeledDataset(
+        EuroSAT(
+            root=config.dataset_root,
+            transform=VICRegTransform(input_size=64),
+        )
     )
     train_dataset = Subset(dataset, list(map(int, train_indices)))
     train_loader = DataLoader(
@@ -140,7 +166,7 @@ def train(config):
         drop_last=True,
     )
 
-    backbone = StudentCNN(width_mult=config.width_mult)
+    backbone = build_student(config.student_cnn)
     model = VICRegModel(backbone).to(device)
 
     print(f"Student feature dimension: {backbone.feature_dim}")
@@ -195,7 +221,7 @@ def train(config):
                 unit="batch",
                 leave=False,
             )
-            for views, _ in batch_progress:
+            for views in batch_progress:
                 # The dataset returns two independently augmented views.
                 x0, x1 = views
                 x0 = x0.to(device, non_blocking=True)
@@ -262,7 +288,7 @@ def train(config):
                 "scheduler_state_dict": scheduler.state_dict(),
                 "scaler_state_dict": scaler.state_dict(),
                 "loss": average_loss,
-                "width_mult": config.width_mult,
+                "student_cnn": config.student_cnn,
             }
             torch.save(
                 checkpoint,
