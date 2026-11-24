@@ -5,7 +5,7 @@
   "student_cnn": "large",
   "approach": "vicreg",
   "batch_size": 64,
-  "epochs": 2,
+  "epochs": 100,
   "learning_rate": 0.001,
   "weight_decay": 0.0001,
   "num_workers": 8,
