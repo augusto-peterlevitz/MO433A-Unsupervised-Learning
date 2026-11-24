@@ -1,0 +1,14 @@
+{
+  "experiment_name": "smoke_test",
+  "dataset_root": "datasets/EuroSAT_RGB",
+  "subsets_path": "datasets/eurosat_train_subsets.pkl",
+  "student_cnn": "large",
+  "approach": "vicreg",
+  "batch_size": 16,
+  "epochs": 1,
+  "learning_rate": 0.001,
+  "weight_decay": 0.0001,
+  "num_workers": 0,
+  "seed": 42,
+  "output_dir": "outputs/checkpoints/smoke/vicreg"
+}

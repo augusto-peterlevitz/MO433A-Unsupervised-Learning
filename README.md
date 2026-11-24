@@ -38,6 +38,22 @@ make generate-subsets
 make run-experiments
 ```
 
+To check that the full pipeline is wired up without using the standard output
+directories, run:
+
+```bash
+make run-experiments-smoke
+```
+
+This uses `configs/smoke.json` (one training epoch, batch size 16, and no data
+loader workers), retains the seed counts required by the training scripts, and
+reduces SVM cross-validation to two folds. It still processes the complete
+dataset and runs all pipeline stages, including teacher extraction and
+diagnostics, so it is a wiring/integration check rather than a quick unit test.
+Checkpoints, feature caches, and reports are written under
+`outputs/{checkpoints,features,runs}/smoke/`. Downloaded assets and generated
+subset files are still required.
+
 For GPU training, pass `--gpus all` to `docker run` and ensure the host has
 NVIDIA Container Toolkit installed. CPU execution remains available without it.
 
