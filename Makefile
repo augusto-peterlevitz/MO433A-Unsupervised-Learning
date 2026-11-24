@@ -29,7 +29,7 @@ SEEDS_LARGE := 42 43
 help:
 	@echo "Available Make targets:"
 	@echo "  docker-build              Build the project Docker image"
-	@echo "  docker-run                Start an interactive container with the repository mounted"
+	@echo "  docker-run                Start an interactive container with all GPUs enabled"
 	@echo "  tensorboard               Launch TensorBoard for training logs"
 	@echo "  download-dino             Download pretrained DINO ViT-S/16 weights"
 	@echo "  download-eurosat          Download and extract the EuroSAT RGB dataset"
@@ -60,7 +60,7 @@ docker-build:
 	docker build -t mo433-unsupervised .
 
 docker-run:
-	docker run --rm -it \
+	docker run --gpus all --rm -it \
 	  -v "$$PWD:/workspace" \
 	  -w /workspace \
 	  mo433-unsupervised
