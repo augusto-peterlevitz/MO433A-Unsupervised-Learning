@@ -7,9 +7,9 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from torchvision import transforms
 
 from data.eurosat import EuroSAT
+from evaluation.transforms import dino_eval_transform
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -56,17 +56,6 @@ def parse_args():
     return parser.parse_args()
 
 
-# ---- Deterministic teacher preprocessing ----
-teacher_transform = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize(
-        mean=(0.485, 0.456, 0.406),
-        std=(0.229, 0.224, 0.225),
-    ),
-])
-
 
 def main():
     args = parse_args()
@@ -84,7 +73,7 @@ def main():
     # 1. Load dataset in its existing, deterministic order.
     dataset = EuroSAT(
         root=args.eurosat_root,
-        transform=teacher_transform,
+        transform=dino_eval_transform,
     )
 
     print(f"Dataset size: {len(dataset)}")

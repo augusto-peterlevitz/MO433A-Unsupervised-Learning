@@ -4,79 +4,10 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
 
 from data.eurosat import EuroSAT
-from lightly.transforms.vicreg_transform import VICRegTransform
 import numpy as np
 
-# --------------------------------------------------
-# 1. Normalization
-# --------------------------------------------------
-
-# ImageNet normalization is a reasonable starting point
-# for the RGB student model.
-MEAN = (0.485, 0.456, 0.406)
-STD = (0.229, 0.224, 0.225)
-
-
-# --------------------------------------------------
-# 2. Training transforms
-# --------------------------------------------------
-
-train_transform = transforms.Compose([
-    transforms.RandomResizedCrop(
-        size=64,
-        scale=(0.6, 1.0),
-    ),
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomVerticalFlip(),
-    transforms.RandomApply([
-        transforms.ColorJitter(
-            brightness=0.3,
-            contrast=0.3,
-            saturation=0.3,
-            hue=0.05,
-        )
-    ], p=0.8),
-    transforms.RandomGrayscale(p=0.1),
-    transforms.ToTensor(),
-    transforms.Normalize(MEAN, STD),
-])
-
-
-# VICReg needs two independently augmented views
-# of the same image.
-# class TwoViewsTransform:
-#     def __init__(self, transform):
-#         self.transform = transform
-
-#     def __call__(self, image):
-#         view1 = self.transform(image)
-#         view2 = self.transform(image)
-#         return view1, view2
-
-
-# vicreg_transform = TwoViewsTransform(train_transform)
-vicreg_transform = VICRegTransform(
-    input_size=64,
-)
-
-# --------------------------------------------------
-# 3. Evaluation transform
-# --------------------------------------------------
-
-eval_transform = transforms.Compose([
-    transforms.Resize(64),
-    transforms.CenterCrop(64),
-    transforms.ToTensor(),
-    transforms.Normalize(MEAN, STD),
-])
-
-
-# --------------------------------------------------
-# 4. Dataset wrapper
-# --------------------------------------------------
 
 class EuroSATSubset(Dataset):
     def __init__(
@@ -122,10 +53,6 @@ class UnlabeledDataset(Dataset):
         return image
 
 
-# --------------------------------------------------
-# 5. Load saved indices
-# --------------------------------------------------
-
 def load_indices(train_pkl, test_pkl):
     with open(train_pkl, "rb") as f:
         train_subsets = pickle.load(f)
@@ -147,9 +74,6 @@ def load_test_indices(test_path):
         raise ValueError(f"Test indices in {test_path} contain duplicates.")
     return indices
 
-# --------------------------------------------------
-# 6. DataLoader factory
-# --------------------------------------------------
 
 def create_loader(
     root,

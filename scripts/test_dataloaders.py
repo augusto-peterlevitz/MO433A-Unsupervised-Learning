@@ -29,13 +29,9 @@ def parse_args():
 
 def main():
     args = parse_args()
-    from data.dataloaders import (
-        load_indices,
-        create_loader,
-        train_transform,
-        vicreg_transform,
-        eval_transform,
-    )
+    from data.dataloaders import load_indices, create_loader
+    from training.transforms import distillation_transform, vicreg_transform
+    from evaluation.transforms import eval_transform
 
     train_subsets, train_indices, test_indices = load_indices(
         args.train_pkl,
@@ -55,7 +51,7 @@ def main():
     distillation_loader = create_loader(
         root=args.eurosat_root,
         indices=train_indices,
-        transform=train_transform,
+        transform=distillation_transform,
         batch_size=64,
         shuffle=True,
         return_labels=False,

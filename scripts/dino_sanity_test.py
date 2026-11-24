@@ -1,28 +1,8 @@
 import torch
 from PIL import Image
-from torchvision import transforms
+from evaluation.transforms import dino_eval_transform
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-teacher_transform = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize(
-        mean=(0.485, 0.456, 0.406),
-        std=(0.229, 0.224, 0.225),
-    ),
-])
-
-eval_transform = transforms.Compose([
-    transforms.Resize(224),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize(
-        mean=(0.485, 0.456, 0.406),
-        std=(0.229, 0.224, 0.225),
-    ),
-])
 
 teacher = torch.hub.load(
     "facebookresearch/dino:main",
@@ -50,7 +30,7 @@ print(f"Parameters: {sum(p.numel() for p in teacher.parameters()):,}")
 
 image = Image.new("RGB", (256, 256), color="gray")
 
-x = teacher_transform(image).unsqueeze(0).to(device)
+x = dino_eval_transform(image).unsqueeze(0).to(device)
 
 with torch.no_grad():
     features = teacher(x)

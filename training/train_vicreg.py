@@ -15,13 +15,13 @@ from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 
 from lightly.loss import VICRegLoss
-from lightly.transforms.vicreg_transform import VICRegTransform
 from tqdm import tqdm
 
 from data.dataloaders import UnlabeledDataset
 from models.student_cnn import build_student
 from models.vicreg import VICRegModel
 from data.eurosat import EuroSAT
+from training.transforms import vicreg_transform
 
 
 @dataclass
@@ -168,7 +168,7 @@ def train(config):
     dataset = UnlabeledDataset(
         EuroSAT(
             root=config.dataset_root,
-            transform=VICRegTransform(input_size=64),
+            transform=vicreg_transform,
         )
     )
     train_dataset = Subset(dataset, list(map(int, train_indices)))

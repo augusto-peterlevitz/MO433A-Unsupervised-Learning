@@ -6,8 +6,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from data.dataloaders import create_loader, eval_transform, load_indices
+from data.dataloaders import create_loader, load_indices
 from models.student_cnn import build_student
+from evaluation.transforms import eval_transform
 
 
 def parse_args():

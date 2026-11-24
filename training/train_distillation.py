@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lightly.transforms.vicreg_transform import VICRegTransform
 from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -22,6 +21,7 @@ from data.eurosat import EuroSAT
 from data.dataloaders import UnlabeledDataset
 from models.student_cnn import build_student
 from training.train_vicreg import load_config
+from training.transforms import distillation_transform
 
 TEACHER_DIM = 384
 TEACHER_SIZE = 224
@@ -148,7 +148,7 @@ def train_one(config, teacher, teacher_checkpoint, projector_type):
     dataset = UnlabeledDataset(
         EuroSAT(
             root=config.dataset_root,
-            transform=VICRegTransform(input_size=64),
+            transform=distillation_transform,
         )
     )
     train_dataset = Subset(dataset, list(map(int, train_indices)))
@@ -227,9 +227,9 @@ def train_one(config, teacher, teacher_checkpoint, projector_type):
                 desc=f"{config.student_cnn} seed {config.seed}, epoch {epoch}/{config.epochs}",
                 leave=False,
             ):
-                # Row B uses this same VICReg augmentation. Row C uses one
-                # augmented view for both networks, then upsamples it for DINO.
-                student_images = views[0].to(device, non_blocking=True)
+                # Row C uses one augmented view for both networks, then
+                # upsamples it for DINO.
+                student_images = views.to(device, non_blocking=True)
                 teacher_images = F.interpolate(
                     student_images.float(),
                     size=(TEACHER_SIZE, TEACHER_SIZE),
