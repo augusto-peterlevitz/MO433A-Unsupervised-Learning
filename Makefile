@@ -19,7 +19,7 @@ SEEDS_LARGE := 42 43
         baseline-features vicreg-features distillation-features distillation-linear-features \
         svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
         knn-probes svm-probes teacher-probes probes \
-        plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
+        vicreg-collapse-diagnostics plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
         plot-label-efficiency-knn plots diagnostics run-experiments clean
 
 help:
@@ -45,7 +45,8 @@ help:
 	@echo "  svm-probes                Run RBF-SVM probes for every encoder"
 	@echo "  teacher-probes            Run KNN and SVM probes on the frozen teacher"
 	@echo "  probes                    Run KNN and SVM probes"
-	@echo "  diagnostics               Run k-means and t-SNE diagnostics"
+	@echo "  vicreg-collapse-diagnostics  Check VICReg features for collapse across sizes and seeds"
+	@echo "  diagnostics               Run k-NN, embedding std, k-means, and t-SNE diagnostics"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
 	@echo "  plots                     Plot all label-efficiency curves"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
@@ -231,7 +232,19 @@ diagnostics:
 	  --test-pkl $(TEST_PKL) \
 	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics
 
-run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots
+vicreg-collapse-diagnostics: vicreg-features
+	$(PYTHON) -m evaluation.representation_diagnostics \
+	  --features-dir $(OUTPUT_FEATURES)/vicreg/small_cnn/seed42 \
+	  --features-dir $(OUTPUT_FEATURES)/vicreg/small_cnn/seed43 \
+	  --features-dir $(OUTPUT_FEATURES)/vicreg/small_cnn/seed44 \
+	  --features-dir $(OUTPUT_FEATURES)/vicreg/larger_cnn/seed42 \
+	  --features-dir $(OUTPUT_FEATURES)/vicreg/larger_cnn/seed43 \
+	  --train-pkl $(TRAIN_PKL) \
+	  --test-pkl $(TEST_PKL) \
+	  --collapse-only \
+	  --output-dir $(OUTPUT_RUNS)/vicreg_collapse_diagnostics
+
+run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics vicreg-collapse-diagnostics plots
 
 clean:
 	rm -rf outputs

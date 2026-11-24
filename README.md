@@ -528,10 +528,30 @@ python3 -m evaluation.representation_diagnostics \
   --output-dir outputs/runs/probes/representation_diagnostics
 ```
 
-The script uses the same held-out test indices for all encoders, L2-normalizes
-the cached features, and runs k-means with one cluster per test class. It saves
-NMI and ARI in `representation_metrics.csv`, t-SNE coordinates in
-`tsne_coordinates.csv`, and a comparable panel in `tsne_projections.png`.
+The diagnostics table also reports cosine k-NN accuracy on the held-out test
+set, k-means NMI/ARI, and per-dimension standard deviation of the L2-normalized
+test embeddings (as well as its mean/minimum/maximum). For the k-NN check, all
+training-split labels are used and `k = min(20, minimum training examples per
+class)`. These are indicators to inspect together, not automatic pass/fail
+thresholds.
+
+To run the collapse checks specifically for every VICReg student seed and
+size, without computing t-SNE:
+
+```bash
+make vicreg-collapse-diagnostics
+```
+
+This writes `collapse_metrics.csv` under
+`outputs/runs/probes/vicreg_collapse_diagnostics/`. Near-chance k-NN accuracy,
+near-zero embedding standard deviation, or near-zero k-means NMI can indicate
+collapse or an otherwise poor representation; the loss curve alone cannot
+rule collapse out.
+
+The script uses the same train/test indices for all encoders and L2-normalizes
+the cached features. It saves k-NN accuracy, embedding variation, NMI, and ARI
+in `representation_metrics.csv`, t-SNE coordinates in `tsne_coordinates.csv`,
+and a comparable panel in `tsne_projections.png`.
 All encoders use the same t-SNE perplexity and random seed; override them with
 `--perplexity` and `--random-state` if needed. Run
 `python3 -m evaluation.representation_diagnostics --help` for all options.
