@@ -1,0 +1,14 @@
+.git
+.gitignore
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.venv
+venv
+env
+outputs
+checkpoints
+runs
+datasets
+dino_deitsmall16_pretrain.pth
