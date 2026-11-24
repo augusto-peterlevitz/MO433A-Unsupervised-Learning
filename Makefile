@@ -8,7 +8,7 @@ TRAIN_PKL := datasets/eurosat_train_subsets.pkl
 TEST_PKL := datasets/eurosat_test_subset.pkl
 DINO_CHECKPOINT := dino_deitsmall16_pretrain.pth
 DINO_WEIGHTS_URL := https://dl.fbaipublicfiles.com/dino/dino_deitsmall16_pretrain/dino_deitsmall16_pretrain.pth
-EUROSAT_URL := https://madm.dfki.de/files/sentinel/EuroSAT.zip
+EUROSAT_URL := https://zenodo.org/records/7711810/files/EuroSAT_RGB.zip?download=1
 SEEDS_SMALL := 42 43 44
 SEEDS_LARGE := 42 43
 
