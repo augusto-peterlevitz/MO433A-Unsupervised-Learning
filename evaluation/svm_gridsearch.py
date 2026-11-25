@@ -119,7 +119,7 @@ def main():
         classifier = LinearSVC(
             C=1,
             dual="auto",
-            max_iter=10_000,
+            max_iter=100_000,
             random_state=args.seed,
         )
 

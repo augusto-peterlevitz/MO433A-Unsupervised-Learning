@@ -78,7 +78,7 @@ def create_pipeline(svm_params):
         classifier = LinearSVC(
             C=svm_params["C"],
             dual="auto",
-            max_iter=10_000,
+            max_iter=100_000,
         )
     elif svm_params["kernel"] == "rbf":
         classifier = SVC(
