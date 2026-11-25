@@ -10,6 +10,12 @@ from sklearn.manifold import TSNE
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 from sklearn.preprocessing import normalize
 from data.dataloaders import load_test_indices, get_data
+from evaluation.utils import (
+    get_aggregate_encoder_name,
+    get_cache_seed,
+    get_encoder_name,
+    load_feature_metadata,
+)
 
 
 def parse_args():
@@ -94,7 +100,15 @@ def main():
         # Unit-length features put embeddings from differently scaled encoders
         # on a comparable scale for these distance-based diagnostics.
         features = normalize(features, norm="l2")
-        encoder_data.append((feature_dir.name, features, labels))
+        metadata = load_feature_metadata(feature_dir)
+        encoder = get_encoder_name(feature_dir, metadata)
+        seed = get_cache_seed(feature_dir, metadata)
+        title = (
+            f"{get_aggregate_encoder_name(encoder)} (Seed {seed})"
+            if seed is not None
+            else encoder
+        )
+        encoder_data.append((encoder, title, features, labels))
 
     labels = reference_labels
     classes = np.unique(labels)
@@ -108,7 +122,7 @@ def main():
 
     metrics = []
     projections = []
-    for encoder, features, encoder_labels in encoder_data:
+    for encoder, title, features, encoder_labels in encoder_data:
         clusters = KMeans(
             n_clusters=classes.size,
             n_init=10,
@@ -130,7 +144,7 @@ def main():
             n_iter=1000,
             random_state=args.random_state,
         ).fit_transform(features)
-        projections.append((encoder, coordinates))
+        projections.append((encoder, title, coordinates))
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metrics_path = args.output_dir / "representation_metrics.csv"
@@ -140,7 +154,7 @@ def main():
         writer.writerows(metrics)
 
     projection_rows = []
-    for encoder, coordinates in projections:
+    for encoder, _, coordinates in projections:
         projection_rows.extend({
             "encoder": encoder,
             "dataset_index": int(dataset_index),
@@ -167,7 +181,7 @@ def main():
         constrained_layout=True,
     )
     color_map = plt.get_cmap("tab20", classes.size)
-    for axis, (encoder, coordinates) in zip(axes.flat, projections):
+    for axis, (_, title, coordinates) in zip(axes.flat, projections):
         for class_index, label in enumerate(classes):
             selected = labels == label
             axis.scatter(
@@ -179,7 +193,7 @@ def main():
                 label=str(label),
                 rasterized=True,
             )
-        axis.set_title(encoder)
+        axis.set_title(title)
         axis.set_xlabel("t-SNE 1")
         axis.set_ylabel("t-SNE 2")
 
