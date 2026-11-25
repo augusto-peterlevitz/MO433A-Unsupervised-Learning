@@ -211,9 +211,20 @@ def main():
                 std_accuracy=("accuracy", "std"),
                 draws=("accuracy", "count"),
                 num_parameters=("num_parameters", "first"),
+                flops_per_image=("flops_per_image", "first"),
+                gflops_per_image=("gflops_per_image", "first"),
                 inference_latency_ms=("inference_latency_ms", "first"),
+                inference_latency_std_ms=("inference_latency_std_ms", "first"),
+                throughput_images_per_second=(
+                    "throughput_images_per_second",
+                    "first",
+                ),
                 device=("device", "first"),
+                gpu_model=("gpu_model", "first"),
                 batch_size=("batch_size", "first"),
+                feature_batch_size=("feature_batch_size", "first"),
+                latency_input_size=("latency_input_size", "first"),
+                latency_precision=("latency_precision", "first"),
             )
             .reset_index()
         )
@@ -248,9 +259,20 @@ def main():
                 observations=("accuracy", "count"),
                 random_seeds=("random_seed", "nunique"),
                 num_parameters=("num_parameters", "first"),
+                flops_per_image=("flops_per_image", "first"),
+                gflops_per_image=("gflops_per_image", "first"),
                 inference_latency_ms=("inference_latency_ms", "first"),
+                inference_latency_std_ms=("inference_latency_std_ms", "first"),
+                throughput_images_per_second=(
+                    "throughput_images_per_second",
+                    "first",
+                ),
                 device=("device", "first"),
+                gpu_model=("gpu_model", "first"),
                 batch_size=("batch_size", "first"),
+                feature_batch_size=("feature_batch_size", "first"),
+                latency_input_size=("latency_input_size", "first"),
+                latency_precision=("latency_precision", "first"),
             )
             .reset_index()
             .rename(columns={"aggregate_encoder": "encoder"})

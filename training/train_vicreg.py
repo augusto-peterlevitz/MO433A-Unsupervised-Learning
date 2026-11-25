@@ -156,7 +156,12 @@ def train(config):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     use_amp = device.type == "cuda"
+    gpu_model = (
+        torch.cuda.get_device_name(device) if device.type == "cuda" else None
+    )
     print(f"Using device: {device}")
+    if gpu_model:
+        print(f"GPU model: {gpu_model}")
 
     with open(config.subsets_path, "rb") as subset_file:
         train_subsets = pickle.load(subset_file)
@@ -224,6 +229,7 @@ def train(config):
         summary_writer.add_text("experiment/name", config.experiment_name, 0)
         summary_writer.add_text("experiment/started_at", started_at.isoformat(), 0)
         global_step = 0
+        total_training_seconds = 0.0
         epoch_progress = tqdm(range(config.epochs), desc="Training", unit="epoch")
         for epoch in epoch_progress:
             model.train()
@@ -281,6 +287,7 @@ def train(config):
             average_loss = total_loss / num_batches
             scheduler.step()
             epoch_seconds = time.time() - start_time
+            total_training_seconds += epoch_seconds
             current_lr = optimizer.param_groups[0]["lr"]
 
             print(
@@ -313,10 +320,44 @@ def train(config):
 
     backbone_path = config.output_dir / "student_backbone.pth"
     torch.save(model.backbone.state_dict(), backbone_path)
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+    student_parameter_count = sum(
+        parameter.numel() for parameter in model.backbone.parameters()
+    )
+    training_metadata = {
+        "approach": "vicreg",
+        "student_cnn": config.student_cnn,
+        "seed": config.seed,
+        "device": str(device),
+        "gpu_model": gpu_model,
+        "cuda_version": torch.version.cuda,
+        "training_epochs": config.epochs,
+        "batch_size": config.batch_size,
+        "optimizer_steps": global_step,
+        "student_parameter_count": student_parameter_count,
+        "trainable_parameter_count": sum(
+            parameter.numel() for parameter in model.parameters()
+        ),
+        "training_seconds": total_training_seconds,
+        "training_gpu_hours": (
+            total_training_seconds / 3600.0 if device.type == "cuda" else None
+        ),
+        "training_images_per_second": (
+            global_step * config.batch_size / total_training_seconds
+        ),
+    }
+    with (config.output_dir / "training_metadata.json").open(
+        "w",
+        encoding="utf-8",
+    ) as metadata_file:
+        json.dump(training_metadata, metadata_file, indent=2)
+        metadata_file.write("\n")
     print("VICReg training finished.")
     print(f"Configuration saved to: {config_path}")
     print(f"TensorBoard logs saved to: {tensorboard_dir}")
     print(f"Backbone saved to: {backbone_path}")
+    print(f"Training metadata saved to: {config.output_dir / 'training_metadata.json'}")
 
 
 def main():

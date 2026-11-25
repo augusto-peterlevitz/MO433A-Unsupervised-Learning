@@ -147,6 +147,48 @@ reports, distinguish its published pretraining compute from the local
 checkpoint's exact training history and record teacher forward GPU-hours
 separately for row C.
 
+## Cost and efficiency reporting
+After the feature caches and probe results exist, measure encoder cost,
+throughput, and end-to-end training efficiency with:
+
+```bash
+make encoder-costs
+make cost-analysis
+```
+
+`encoder-costs` measures student encoders at 96x96 and DINO at 224x224 on a
+fixed device. The inference benchmark uses batch size 1, 50 warm-up iterations,
+and 200 timed iterations in float32; it records parameters, fvcore FLOPs per
+image, mean and standard-deviation latency, throughput, GPU model, and any
+unsupported FLOP operators. The throughput benchmark uses the selected
+training config and reports augmented-loader images/s, VICReg training-step
+images/s for both student sizes, and DINO forward images/s at the training
+batch size with AMP when CUDA is available. The model-step and teacher-forward
+benchmarks use synthetic device-resident inputs to isolate compute; the loader
+benchmark includes EuroSAT decoding and VICReg augmentations on CPU. These
+measurements are written to
+`cost_analysis/{encoder_costs,throughput}.csv`.
+
+Measured costs are attached to feature metadata and probe result CSVs.
+`batch_size` in the probe CSVs is the latency-measurement batch size;
+`feature_batch_size` preserves the feature-extraction batch size. The latency
+columns therefore describe the fixed benchmark settings, not the probe's
+classifier batch size.
+
+`cost-analysis` reads VICReg epoch timings from TensorBoard (or the saved
+`training_metadata.json` for new runs), distillation epoch timings and
+teacher-forward GPU time from the run metadata, and the linear-SVM aggregate
+accuracies. It writes per-seed local training cost to
+`cost_analysis/training_gpu_hours.csv` and accuracy-per-GPU-hour scenarios to
+`cost_analysis/accuracy_per_gpu_hour.csv`. The latter reports both published
+DINO pretraining references. The checkpoint's exact pretraining run is
+unverified; each C scenario conservatively charges the full reference cost,
+while also listing local distillation GPU-hours and teacher-forward time
+separately. Do not treat either published reference as the confirmed cost of
+this checkpoint. For historical VICReg runs without device metadata, the
+report marks the training device as inferred from the corresponding feature
+cache; new VICReg runs save the device and GPU model explicitly.
+
 ## Row B: VICReg Student Training
 Run the direct-training baseline for one named variant of the project's
 `StudentCNN` architecture. Specify all seeds for that variant with `--seeds`:

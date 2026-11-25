@@ -192,6 +192,7 @@ def train_one(config, teacher, teacher_checkpoint, projector_type):
     tensorboard_dir = config.output_dir / "tensorboard" / run_name
     teacher_timing_events = []
     teacher_forward_seconds = 0.0
+    total_training_seconds = 0.0
     global_step = 0
     parameter_count = sum(parameter.numel() for parameter in student.parameters())
     print(
@@ -294,6 +295,7 @@ def train_one(config, teacher, teacher_checkpoint, projector_type):
             average_loss = total_loss / len(train_loader)
             scheduler.step()
             epoch_seconds = time.perf_counter() - epoch_started
+            total_training_seconds += epoch_seconds
             learning_rate = optimizer.param_groups[0]["lr"]
             writer.writerow({
                 "epoch": epoch,
@@ -337,6 +339,9 @@ def train_one(config, teacher, teacher_checkpoint, projector_type):
 
     backbone_path = config.output_dir / "student_backbone.pth"
     torch.save(student.state_dict(), backbone_path)
+    gpu_model = (
+        torch.cuda.get_device_name(device) if device.type == "cuda" else None
+    )
     distillation_metadata = {
         "approach": "distillation",
         "projector_type": projector_type,
@@ -353,9 +358,23 @@ def train_one(config, teacher, teacher_checkpoint, projector_type):
         "projector_parameter_count": sum(
             parameter.numel() for parameter in projector.parameters()
         ),
+        "trainable_parameter_count": sum(
+            parameter.numel()
+            for parameter in list(student.parameters()) + list(projector.parameters())
+        ),
         "training_epochs": config.epochs,
         "batch_size": config.batch_size,
         "optimizer_steps": config.epochs * len(train_loader),
+        "training_device": str(device),
+        "gpu_model": gpu_model,
+        "cuda_version": torch.version.cuda,
+        "training_seconds": total_training_seconds,
+        "local_training_gpu_hours": (
+            total_training_seconds / 3600.0 if device.type == "cuda" else None
+        ),
+        "training_images_per_second": (
+            global_step * config.batch_size / total_training_seconds
+        ),
         "teacher_forward_seconds": teacher_forward_seconds,
         "teacher_forward_device": str(device),
         "teacher_forward_gpu_hours": (
