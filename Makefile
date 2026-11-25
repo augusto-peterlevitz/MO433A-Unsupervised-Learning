@@ -6,6 +6,9 @@ OUTPUT_RUNS := outputs/runs/probes
 SVM_CV_SPLITS ?= 5
 FEATURE_BATCH_SIZE ?= 64
 FEATURE_NUM_WORKERS ?= 4
+ENCODER_COST_WARMUP ?= 50
+ENCODER_COST_ITERATIONS ?= 200
+ENCODER_COST_BATCH_SIZE ?= 1
 EUROSAT_ROOT := datasets/EuroSAT_RGB
 TRAIN_PKL := datasets/eurosat_train_subsets.pkl
 TEST_PKL := datasets/eurosat_test_subset.pkl
@@ -23,8 +26,8 @@ SEEDS_LARGE := 42 43
         svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
         knn-probes svm-rbf-probes svm-linear-probes teacher-probes probes \
         plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
-        plot-label-efficiency-knn plot-distillation-gap plots diagnostics run-experiments \
-        encoder-costs cost-analysis run-experiments-smoke clean
+        plot-label-efficiency-knn plots diagnostics encoder-costs run-experiments \
+        run-experiments-smoke clean
 
 help:
 	@echo "Available Make targets:"
@@ -51,9 +54,7 @@ help:
 	@echo "  teacher-probes            Run KNN and SVM probes on the frozen teacher"
 	@echo "  probes                    Run KNN and SVM probes"
 	@echo "  diagnostics               Run k-means and t-SNE diagnostics"
-	@echo "  encoder-costs             Measure encoder FLOPs/latency and throughput"
-	@echo "  cost-analysis             Summarize training GPU-hours and accuracy per GPU-hour"
-	@echo "  plot-distillation-gap     Plot paired C-versus-B gaps by size and projector"
+	@echo "  encoder-costs             Measure encoder parameters, FLOPs, and latency"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
 	@echo "  plots                     Plot all label-efficiency curves"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
@@ -203,7 +204,7 @@ svm-gridsearch-linear:
 
 svm-gridsearch: svm-gridsearch-rbf svm-gridsearch-linear
 
-knn-probes: encoder-costs
+knn-probes:
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn small --seeds $(SEEDS_SMALL) --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn large --seeds $(SEEDS_LARGE) --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) --output-dir $(OUTPUT_RUNS)
@@ -213,7 +214,7 @@ knn-probes: encoder-costs
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type linear --seeds $(SEEDS_SMALL) --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type linear --seeds $(SEEDS_LARGE) --output-dir $(OUTPUT_RUNS)
 
-svm-rbf-probes: encoder-costs svm-gridsearch-rbf
+svm-rbf-probes: svm-gridsearch-rbf
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn large --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
@@ -223,12 +224,12 @@ svm-rbf-probes: encoder-costs svm-gridsearch-rbf
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type linear --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type linear --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 
-teacher-probes: encoder-costs teacher-features svm-gridsearch-rbf svm-gridsearch-linear
+teacher-probes: teacher-features svm-gridsearch-rbf svm-gridsearch-linear
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
 
-svm-linear-probes: encoder-costs svm-gridsearch-linear
+svm-linear-probes: svm-gridsearch-linear
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn large --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
@@ -249,33 +250,7 @@ plot-label-efficiency-svm-rbf:
 plot-label-efficiency-knn:
 	$(PYTHON) -m evaluation.plot_label_efficiency --probe knn --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/label_efficiency
 
-plot-distillation-gap:
-	$(PYTHON) -m evaluation.plot_distillation_gap --probe linear --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/distillation_gap
-	$(PYTHON) -m evaluation.plot_distillation_gap --probe rbf --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/distillation_gap
-	$(PYTHON) -m evaluation.plot_distillation_gap --probe knn --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/distillation_gap
-
-plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label-efficiency-knn plot-distillation-gap
-
-encoder-costs: teacher-features baseline-features vicreg-features distillation-features distillation-linear-features
-	$(PYTHON) -m scripts.measure_student_cost \
-	  --teacher-checkpoint $(DINO_CHECKPOINT) \
-	  --output $(OUTPUT_RUNS)/cost_analysis/encoder_costs.csv
-	$(PYTHON) -m scripts.measure_training_throughput \
-	  --config $(CONFIG) \
-	  --teacher-checkpoint $(DINO_CHECKPOINT) \
-	  --output $(OUTPUT_RUNS)/cost_analysis/throughput.csv
-	$(PYTHON) -m evaluation.attach_encoder_costs \
-	  --costs-csv $(OUTPUT_RUNS)/cost_analysis/encoder_costs.csv \
-	  --features-dir $(OUTPUT_FEATURES) \
-	  --runs-dir $(OUTPUT_RUNS)
-
-cost-analysis: encoder-costs probes teacher-probes
-	$(PYTHON) -m evaluation.cost_analysis \
-	  --checkpoints-dir $(OUTPUT_CHECKPOINTS) \
-	  --features-dir $(OUTPUT_FEATURES) \
-	  --runs-dir $(OUTPUT_RUNS) \
-	  --encoder-costs-csv $(OUTPUT_RUNS)/cost_analysis/encoder_costs.csv \
-	  --output-dir $(OUTPUT_RUNS)/cost_analysis
+plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label-efficiency-knn
 
 diagnostics:
 	$(PYTHON) -m evaluation.representation_diagnostics \
@@ -287,7 +262,15 @@ diagnostics:
 	  --test-pkl $(TEST_PKL) \
 	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics
 
-run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features encoder-costs svm-gridsearch probes teacher-probes diagnostics plots cost-analysis
+encoder-costs:
+	$(PYTHON) -m scripts.measure_student_cost \
+	  --teacher-checkpoint $(DINO_CHECKPOINT) \
+	  --output $(OUTPUT_RUNS)/encoder_costs.csv \
+	  --warmup $(ENCODER_COST_WARMUP) \
+	  --iterations $(ENCODER_COST_ITERATIONS) \
+	  --latency-batch-size $(ENCODER_COST_BATCH_SIZE)
+
+run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots
 
 run-experiments-smoke:
 	$(MAKE) run-experiments \
