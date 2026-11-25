@@ -26,7 +26,7 @@ SEEDS_LARGE := 42 43
         svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
         knn-probes svm-rbf-probes svm-linear-probes teacher-probes probes \
         plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
-        plot-label-efficiency-knn plots diagnostics encoder-costs run-experiments \
+        plot-label-efficiency-knn plots diagnostics encoder-costs join-probe-costs run-experiments \
         run-experiments-smoke clean
 
 help:
@@ -55,6 +55,7 @@ help:
 	@echo "  probes                    Run KNN and SVM probes"
 	@echo "  diagnostics               Run k-means and t-SNE diagnostics"
 	@echo "  encoder-costs             Measure encoder parameters, FLOPs, and latency"
+	@echo "  join-probe-costs          Add measured encoder costs to probe result CSVs"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
 	@echo "  plots                     Plot all label-efficiency curves"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
@@ -269,6 +270,12 @@ encoder-costs:
 	  --warmup $(ENCODER_COST_WARMUP) \
 	  --iterations $(ENCODER_COST_ITERATIONS) \
 	  --latency-batch-size $(ENCODER_COST_BATCH_SIZE)
+
+join-probe-costs:
+	$(PYTHON) -m evaluation.join_encoder_costs \
+	  --costs-csv $(OUTPUT_RUNS)/encoder_costs.csv \
+	  --results-dir $(OUTPUT_RUNS) \
+	  --output-dir $(OUTPUT_RUNS)/cost_joined
 
 run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots
 
