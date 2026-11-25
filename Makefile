@@ -55,7 +55,7 @@ help:
 	@echo "  probes                    Run KNN and SVM probes"
 	@echo "  diagnostics               Run k-means and t-SNE diagnostics"
 	@echo "  encoder-costs             Measure encoder parameters, FLOPs, and latency"
-	@echo "  join-probe-costs          Add measured encoder costs to probe result CSVs"
+	@echo "  join-probe-costs          Combine probe results with measured encoder costs"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
 	@echo "  plots                     Plot all label-efficiency curves"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
@@ -275,7 +275,7 @@ join-probe-costs:
 	$(PYTHON) -m evaluation.join_encoder_costs \
 	  --costs-csv $(OUTPUT_RUNS)/encoder_costs.csv \
 	  --results-dir $(OUTPUT_RUNS) \
-	  --output-dir $(OUTPUT_RUNS)/cost_joined
+	  --output-csv outputs/runs/summarized_results.csv
 
 run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots
 

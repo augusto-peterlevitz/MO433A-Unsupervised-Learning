@@ -25,7 +25,7 @@ COST_COLUMN_MAP = {
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Join encoder-cost measurements to KNN and SVM result CSVs."
+        description="Combine KNN and SVM results with encoder-cost measurements."
     )
     parser.add_argument(
         "--costs-csv",
@@ -39,10 +39,10 @@ def parse_args():
         help="Root containing knn_evaluation and svm_evaluation results.",
     )
     parser.add_argument(
-        "--output-dir",
+        "--output-csv",
         type=Path,
-        default=Path("outputs/runs/probes/cost_joined"),
-        help="Write joined copies here, preserving paths below results-dir.",
+        default=Path("outputs/runs/summarized_results.csv"),
+        help="Write the combined results CSV here.",
     )
     return parser.parse_args()
 
@@ -114,17 +114,12 @@ def resolve_cost_encoder(row, source_path):
     )
 
 
-def join_result_file(source_path, results_root, output_root, costs):
+def join_result_file(source_path, results_root, costs):
     with source_path.open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         if reader.fieldnames is None:
             raise ValueError(f"Result CSV has no header: {source_path}")
-        fieldnames = list(reader.fieldnames)
         rows = list(reader)
-
-    for column in ("cost_encoder", *COST_COLUMN_MAP):
-        if column not in fieldnames:
-            fieldnames.append(column)
 
     for row in rows:
         cost_encoder = resolve_cost_encoder(row, source_path.relative_to(results_root))
@@ -133,33 +128,28 @@ def join_result_file(source_path, results_root, output_root, costs):
         for output_column, cost_column in COST_COLUMN_MAP.items():
             row[output_column] = measured_cost[cost_column]
 
-    output_path = output_root / source_path.relative_to(results_root)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-    return output_path, len(rows)
+    for row in rows:
+        row["source_csv"] = str(source_path.relative_to(results_root))
+    fieldnames = list(reader.fieldnames)
+    for column in ("source_csv", "cost_encoder", *COST_COLUMN_MAP):
+        if column not in fieldnames:
+            fieldnames.append(column)
+    return rows, fieldnames
 
 
-def find_result_files(results_root, output_root):
+def find_result_files(results_root):
     probe_names = ("knn_evaluation", "svm_evaluation")
     if results_root.name in probe_names:
         probe_roots = [results_root]
     else:
         probe_roots = [results_root / name for name in probe_names]
 
-    output_root = output_root.resolve()
     result_files = []
     for probe_root in probe_roots:
         if not probe_root.is_dir():
             continue
         for filename in ("results.csv", "summary.csv"):
-            result_files.extend(
-                path
-                for path in probe_root.rglob(filename)
-                if output_root not in path.resolve().parents
-            )
+            result_files.extend(probe_root.rglob(filename))
     return sorted(set(result_files))
 
 
@@ -171,24 +161,36 @@ def main():
         raise FileNotFoundError(f"Probe results directory not found: {args.results_dir}")
 
     costs = load_costs(args.costs_csv)
-    result_files = find_result_files(args.results_dir, args.output_dir)
+    result_files = find_result_files(args.results_dir)
     if not result_files:
         raise FileNotFoundError(
             f"No results.csv or summary.csv files found under "
             f"{args.results_dir}/knn_evaluation or {args.results_dir}/svm_evaluation."
         )
 
-    total_rows = 0
+    combined_rows = []
+    fieldnames = []
     for source_path in result_files:
-        output_path, row_count = join_result_file(
+        rows, source_fieldnames = join_result_file(
             source_path,
             args.results_dir,
-            args.output_dir,
             costs,
         )
-        total_rows += row_count
-        print(f"Joined {row_count} rows: {output_path}")
-    print(f"Joined {total_rows} probe rows across {len(result_files)} CSV files.")
+        combined_rows.extend(rows)
+        for column in source_fieldnames:
+            if column not in fieldnames:
+                fieldnames.append(column)
+        print(f"Joined {len(rows)} rows from {source_path}")
+
+    args.output_csv.parent.mkdir(parents=True, exist_ok=True)
+    with args.output_csv.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(combined_rows)
+    print(
+        f"Wrote {len(combined_rows)} combined probe rows from "
+        f"{len(result_files)} CSV files to {args.output_csv}."
+    )
 
 
 if __name__ == "__main__":
