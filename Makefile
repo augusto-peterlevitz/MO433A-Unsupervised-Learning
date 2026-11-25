@@ -26,7 +26,7 @@ SEEDS_LARGE := 42 43
         svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
         knn-probes svm-rbf-probes svm-linear-probes teacher-probes probes \
         plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
-        plot-label-efficiency-knn plots diagnostics encoder-costs join-probe-costs run-experiments \
+        plot-label-efficiency-knn plots diagnostics encoder-costs compute-cost-table join-probe-costs run-experiments \
         run-experiments-smoke clean
 
 help:
@@ -55,6 +55,7 @@ help:
 	@echo "  probes                    Run KNN and SVM probes"
 	@echo "  diagnostics               Run k-means and t-SNE diagnostics"
 	@echo "  encoder-costs             Measure encoder parameters, FLOPs, and latency"
+	@echo "  compute-cost-table        Aggregate local GPU-hours and teacher pretraining references"
 	@echo "  join-probe-costs          Combine probe results with measured encoder costs"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
 	@echo "  plots                     Plot all label-efficiency curves"
@@ -271,13 +272,21 @@ encoder-costs:
 	  --iterations $(ENCODER_COST_ITERATIONS) \
 	  --latency-batch-size $(ENCODER_COST_BATCH_SIZE)
 
+compute-cost-table:
+	$(PYTHON) -m evaluation.compute_cost_table \
+	  --checkpoint-root $(OUTPUT_CHECKPOINTS) \
+	  --teacher-feature-dir $(OUTPUT_FEATURES)/dino_vits16 \
+	  --output-csv $(OUTPUT_RUNS)/compute_costs.csv \
+	  --small-seeds $(SEEDS_SMALL) \
+	  --large-seeds $(SEEDS_LARGE)
+
 join-probe-costs:
 	$(PYTHON) -m evaluation.join_encoder_costs \
 	  --costs-csv $(OUTPUT_RUNS)/encoder_costs.csv \
 	  --results-dir $(OUTPUT_RUNS) \
-	  --output-csv outputs/runs/summarized_results.csv
+	  --output-csv $(OUTPUT_RUNS)/summarized_results.csv
 
-run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots
+run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots encoder-costs compute-cost-table join-probe-costs
 
 run-experiments-smoke:
 	$(MAKE) run-experiments \

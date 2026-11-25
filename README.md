@@ -147,6 +147,12 @@ reports, distinguish its published pretraining compute from the local
 checkpoint's exact training history and record teacher forward GPU-hours
 separately for row C.
 
+Run `make compute-cost-table` after training to write
+`outputs/runs/compute_costs.csv`. The table includes per-seed and aggregate
+measured GPU-hours, DINO teacher-forward GPU-hours for row C, and published
+teacher-pretraining references. A missing metadata file is reported explicitly
+instead of silently counted as zero.
+
 ## Row B: VICReg Student Training
 Run the direct-training baseline for one named variant of the project's
 `StudentCNN` architecture. Specify all seeds for that variant with `--seeds`:
