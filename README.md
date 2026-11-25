@@ -351,7 +351,26 @@ python3 -m evaluation.svm_evaluate \
 
 Repeat with large-student seeds `42 43` for all three encoders. This yields
 the required two-projector-setting-by-two-student-size result grid; compare
-each distillation result against VICReg of the same size.
+each distillation result against VICReg of the same size. `make plots` creates
+the paired C-versus-B gap figures for linear SVM, RBF SVM, and k-NN from those
+per-seed results:
+
+```bash
+python3 -m evaluation.plot_distillation_gap \
+  --probe linear \
+  --input-dir outputs/runs/probes \
+  --output-dir outputs/runs/probes/distillation_gap
+```
+
+The parameter-count figure plots the paired mean C-minus-B accuracy gap with
+standard-deviation error bars against student-backbone parameter count at each
+labeled-data fraction. The companion ablation figure shows the same gaps by
+projector setting and student size. Pairing uses the same seed and subset draw
+for B and C; duplicate full-data draws are counted once per seed. The output
+directory also contains paired observations and a summary CSV with the gap,
+spread, paired observation count, seed count, and mean B/C accuracies.
+Parameter counts refer to the evaluated student backbone; the distillation
+projector is discarded before feature extraction.
 
 Extract all seeds from the distilled row with:
 

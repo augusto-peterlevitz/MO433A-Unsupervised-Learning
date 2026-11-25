@@ -23,7 +23,7 @@ SEEDS_LARGE := 42 43
         svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
         knn-probes svm-rbf-probes svm-linear-probes teacher-probes probes \
         plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
-        plot-label-efficiency-knn plots diagnostics run-experiments \
+        plot-label-efficiency-knn plot-distillation-gap plots diagnostics run-experiments \
         run-experiments-smoke clean
 
 help:
@@ -51,6 +51,7 @@ help:
 	@echo "  teacher-probes            Run KNN and SVM probes on the frozen teacher"
 	@echo "  probes                    Run KNN and SVM probes"
 	@echo "  diagnostics               Run k-means and t-SNE diagnostics"
+	@echo "  plot-distillation-gap     Plot paired C-versus-B gaps by size and projector"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
 	@echo "  plots                     Plot all label-efficiency curves"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
@@ -246,7 +247,12 @@ plot-label-efficiency-svm-rbf:
 plot-label-efficiency-knn:
 	$(PYTHON) -m evaluation.plot_label_efficiency --probe knn --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/label_efficiency
 
-plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label-efficiency-knn
+plot-distillation-gap:
+	$(PYTHON) -m evaluation.plot_distillation_gap --probe linear --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/distillation_gap
+	$(PYTHON) -m evaluation.plot_distillation_gap --probe rbf --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/distillation_gap
+	$(PYTHON) -m evaluation.plot_distillation_gap --probe knn --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/distillation_gap
+
+plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label-efficiency-knn plot-distillation-gap
 
 diagnostics:
 	$(PYTHON) -m evaluation.representation_diagnostics \
