@@ -21,7 +21,7 @@ SEEDS_LARGE := 42 43
         distillation-small-linear distillation-large-linear distillation-ablation \
         baseline-features vicreg-features distillation-features distillation-linear-features \
         svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
-        knn-probes svm-probes teacher-probes probes \
+        knn-probes svm-rbf-probes svm-linear-probes teacher-probes probes \
         plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
         plot-label-efficiency-knn plots diagnostics run-experiments \
         run-experiments-smoke clean
@@ -46,7 +46,8 @@ help:
 	@echo "  distillation-linear-features  Extract linear-projector features"
 	@echo "  svm-gridsearch            Tune linear and RBF SVM parameters once on VICReg"
 	@echo "  knn-probes                Run KNN probes for every encoder"
-	@echo "  svm-probes                Run RBF-SVM probes for every encoder"
+	@echo "  svm-rbf-probes                Run RBF-SVM probes for every encoder"
+	@echo "  svm-linear-probes         Run linear-SVM probes for every encoder"
 	@echo "  teacher-probes            Run KNN and SVM probes on the frozen teacher"
 	@echo "  probes                    Run KNN and SVM probes"
 	@echo "  diagnostics               Run k-means and t-SNE diagnostics"
@@ -156,28 +157,28 @@ baseline-features:
 vicreg-features:
 	$(PYTHON) -m evaluation.extract_features \
 	  --config $(CONFIG) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) \
-	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/vicreg --output-dir $(OUTPUT_FEATURES)
+	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/vicreg --output-dir $(OUTPUT_FEATURES)/vicreg
 	$(PYTHON) -m evaluation.extract_features \
 	  --config $(CONFIG) --approach vicreg --student-cnn large --seeds $(SEEDS_LARGE) \
-	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/vicreg --output-dir $(OUTPUT_FEATURES)
+	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/vicreg --output-dir $(OUTPUT_FEATURES)/vicreg
 
 distillation-features:
 	$(PYTHON) -m evaluation.extract_features \
 	  --config $(CONFIG) --approach distillation --student-cnn small --seeds $(SEEDS_SMALL) \
-	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/distillation --output-dir $(OUTPUT_FEATURES)
+	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/distillation --output-dir $(OUTPUT_FEATURES)/distillation
 	$(PYTHON) -m evaluation.extract_features \
 	  --config $(CONFIG) --approach distillation --student-cnn large --seeds $(SEEDS_LARGE) \
-	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/distillation --output-dir $(OUTPUT_FEATURES)
+	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/distillation --output-dir $(OUTPUT_FEATURES)/distillation
 
 distillation-linear-features:
 	$(PYTHON) -m evaluation.extract_features \
 	  --config $(CONFIG) --approach distillation --student-cnn small --seeds $(SEEDS_SMALL) \
 	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/distillation/ablation/projector_linear \
-	  --output-dir $(OUTPUT_FEATURES)
+	  --output-dir $(OUTPUT_FEATURES)/distillation
 	$(PYTHON) -m evaluation.extract_features \
 	  --config $(CONFIG) --approach distillation --student-cnn large --seeds $(SEEDS_LARGE) \
 	  --checkpoint-root $(OUTPUT_CHECKPOINTS)/distillation/ablation/projector_linear \
-	  --output-dir $(OUTPUT_FEATURES)
+	  --output-dir $(OUTPUT_FEATURES)/distillation
 
 teacher-features:
 	$(PYTHON) -m evaluation.dino_extract_features \
@@ -209,7 +210,7 @@ knn-probes:
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type linear --seeds $(SEEDS_SMALL) --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type linear --seeds $(SEEDS_LARGE) --output-dir $(OUTPUT_RUNS)
 
-svm-probes: svm-gridsearch-rbf
+svm-rbf-probes: svm-gridsearch-rbf
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn large --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
@@ -219,11 +220,22 @@ svm-probes: svm-gridsearch-rbf
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type linear --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type linear --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 
-teacher-probes: teacher-features svm-gridsearch-rbf
+teacher-probes: teacher-features svm-gridsearch-rbf svm-gridsearch-linear
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
 
-probes: knn-probes svm-probes
+svm-linear-probes: svm-gridsearch-linear
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn large --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn large --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type mlp --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type mlp --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type linear --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
+	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type linear --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
+
+probes: knn-probes svm-rbf-probes svm-linear-probes
 
 plot-label-efficiency-svm-linear:
 	$(PYTHON) -m evaluation.plot_label_efficiency --probe linear --input-dir $(OUTPUT_RUNS)/svm_evaluation --output-dir $(OUTPUT_RUNS)/label_efficiency
