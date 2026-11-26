@@ -29,9 +29,9 @@ def parse_args():
     )
     parser.add_argument(
         "--projector-type",
-        choices=("mlp", "linear"),
+        choices=("mlp", "linear", "all"),
         default="mlp",
-        help="Distillation projector to compare against VICReg.",
+        help="Distillation projector to compare against VICReg, or both.",
     )
     parser.add_argument(
         "--output-dir",
@@ -154,6 +154,145 @@ def prepare_paired_gaps(results):
     return paired, summary
 
 
+def projector_change_direction(small_change, large_change):
+    tolerance = 1e-9
+    small_direction = (
+        1 if small_change > tolerance else -1 if small_change < -tolerance else 0
+    )
+    large_direction = (
+        1 if large_change > tolerance else -1 if large_change < -tolerance else 0
+    )
+    if small_direction == large_direction == 1:
+        return "Yes (gap increases for both sizes)"
+    if small_direction == large_direction == -1:
+        return "Yes (gap decreases for both sizes)"
+    if small_direction == large_direction == 0:
+        return "No change for either size"
+    if small_direction == 0 or large_direction == 0:
+        return "No (gap changes for only one size)"
+    return "No (opposite directions)"
+
+
+def build_ablation_grid(projector_summaries):
+    combined = pd.concat(
+        [
+            summary.assign(projector_type=projector_type)
+            for projector_type, summary in projector_summaries.items()
+        ],
+        ignore_index=True,
+    )
+    expected_cells = {
+        (projector_type, student_size)
+        for projector_type in ("mlp", "linear")
+        for student_size in ("small", "large")
+    }
+
+    parameter_counts = {}
+    for student_size in ("small", "large"):
+        counts = combined.loc[
+            combined["student_size"] == student_size, "student_parameters"
+        ].unique()
+        if len(counts) != 1:
+            raise ValueError(
+                f"Expected one parameter count for {student_size} students, "
+                f"found {counts.tolist()}."
+            )
+        parameter_counts[student_size] = int(counts[0])
+
+    rows = []
+    for fraction in sorted(combined["fraction"].unique()):
+        row = {
+            "fraction": fraction,
+            "small_parameters": parameter_counts["small"],
+            "large_parameters": parameter_counts["large"],
+        }
+        found_cells = set()
+        cell_rows = {}
+        for record in combined[combined["fraction"] == fraction].to_dict("records"):
+            key = (record["projector_type"], record["student_size"])
+            if key in cell_rows:
+                raise ValueError(
+                    f"Multiple ablation summary rows for fraction {fraction} "
+                    f"and cell {key}."
+                )
+            found_cells.add(key)
+            cell_rows[key] = record
+        if found_cells != expected_cells:
+            raise ValueError(
+                f"Incomplete ablation grid at fraction {fraction}: "
+                f"missing={sorted(expected_cells - found_cells)}, "
+                f"unexpected={sorted(found_cells - expected_cells)}."
+            )
+
+        for projector_type, student_size in sorted(expected_cells):
+            cell = cell_rows[(projector_type, student_size)]
+            prefix = f"{projector_type}_{student_size}"
+            row[f"{prefix}_mean_gap_pp"] = cell["mean_gap_pp"]
+            row[f"{prefix}_std_gap_pp"] = cell["std_gap_pp"]
+            row[f"{prefix}_paired_seeds"] = int(cell["paired_seeds"])
+
+        for student_size in ("small", "large"):
+            change = (
+                cell_rows[("linear", student_size)]["mean_gap_pp"]
+                - cell_rows[("mlp", student_size)]["mean_gap_pp"]
+            )
+            row[f"linear_minus_mlp_{student_size}_pp"] = change
+
+        row["same_direction_for_both_sizes"] = projector_change_direction(
+            row["linear_minus_mlp_small_pp"],
+            row["linear_minus_mlp_large_pp"],
+        )
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def write_ablation_markdown(grid, output_path):
+    lines = [
+        "# C-versus-B projector ablation",
+        "",
+        "Each cell reports mean C-minus-B linear-SVM accuracy gap ± 1 SD "
+        "across paired seeds, in percentage points. Positive values favor C; "
+        "negative values favor B.",
+        "",
+    ]
+    for row in grid.to_dict("records"):
+        fraction = row["fraction"]
+        lines.extend(
+            [
+                f"## {fraction:.0%} labeled data",
+                "",
+                f"| Projector | Small ({row['small_parameters']:,} params) "
+                f"| Large ({row['large_parameters']:,} params) |",
+                "|---|---:|---:|",
+            ]
+        )
+        for projector_type in ("mlp", "linear"):
+            cells = []
+            for student_size in ("small", "large"):
+                prefix = f"{projector_type}_{student_size}"
+                mean = row[f"{prefix}_mean_gap_pp"]
+                std = row[f"{prefix}_std_gap_pp"]
+                seeds = row[f"{prefix}_paired_seeds"]
+                spread = f"{std:.2f}" if pd.notna(std) else "n/a"
+                cells.append(f"{mean:+.2f} ± {spread} pp (n={seeds})")
+            lines.append(f"| {projector_type.upper()} | {cells[0]} | {cells[1]} |")
+
+        small_change = row["linear_minus_mlp_small_pp"]
+        large_change = row["linear_minus_mlp_large_pp"]
+        lines.extend(
+            [
+                "",
+                f"Linear − MLP gap change: small {small_change:+.2f} pp; "
+                f"large {large_change:+.2f} pp. Same direction for both sizes: "
+                f"{row['same_direction_for_both_sizes']}.",
+                "",
+            ]
+        )
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def print_size_comparison(summary):
     small = summary[summary["student_size"] == "small"].set_index("fraction")
     large = summary[summary["student_size"] == "large"].set_index("fraction")
@@ -259,21 +398,49 @@ def main():
     if not args.input_dir.is_dir():
         raise FileNotFoundError(f"SVM result directory not found: {args.input_dir}")
 
-    results = load_probe_results(args.input_dir, args.projector_type)
-    paired, summary = prepare_paired_gaps(results)
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    projector_types = (
+        ("mlp", "linear")
+        if args.projector_type == "all"
+        else (args.projector_type,)
+    )
+    projector_summaries = {}
+    for projector_type in projector_types:
+        results = load_probe_results(args.input_dir, projector_type)
+        paired, summary = prepare_paired_gaps(results)
+        projector_summaries[projector_type] = summary
 
-    paired_path = args.output_dir / f"distillation_gap_{args.projector_type}_paired.csv"
-    summary_path = args.output_dir / f"distillation_gap_{args.projector_type}_summary.csv"
-    figure_path = args.output_dir / f"distillation_gap_{args.projector_type}.png"
-    paired.to_csv(paired_path, index=False)
-    summary.to_csv(summary_path, index=False)
-    plot_gaps(summary, figure_path, args.projector_type)
-    print_size_comparison(summary)
+        paired_path = (
+            args.output_dir / f"distillation_gap_{projector_type}_paired.csv"
+        )
+        summary_path = (
+            args.output_dir / f"distillation_gap_{projector_type}_summary.csv"
+        )
+        figure_path = args.output_dir / f"distillation_gap_{projector_type}.png"
+        paired.to_csv(paired_path, index=False)
+        summary.to_csv(summary_path, index=False)
+        plot_gaps(summary, figure_path, projector_type)
+        print_size_comparison(summary)
 
-    print(f"Paired results saved to {paired_path}")
-    print(f"Gap summary saved to {summary_path}")
-    print(f"Gap plot saved to {figure_path}")
+        print(f"Paired results saved to {paired_path}")
+        print(f"Gap summary saved to {summary_path}")
+        print(f"Gap plot saved to {figure_path}")
+
+    if args.projector_type == "all":
+        grid = build_ablation_grid(projector_summaries)
+        csv_path = args.output_dir / "distillation_gap_ablation_grid.csv"
+        markdown_path = args.output_dir / "distillation_gap_ablation_table.md"
+        grid.to_csv(csv_path, index=False)
+        write_ablation_markdown(grid, markdown_path)
+        print(f"Ablation grid saved to {csv_path}")
+        print(f"Report-ready ablation table saved to {markdown_path}")
+        for row in grid.to_dict("records"):
+            print(
+                f"{row['fraction']:.0%} labels: projector change is "
+                f"{row['same_direction_for_both_sizes']} "
+                f"(small {row['linear_minus_mlp_small_pp']:+.2f} pp; "
+                f"large {row['linear_minus_mlp_large_pp']:+.2f} pp)."
+            )
 
 
 if __name__ == "__main__":

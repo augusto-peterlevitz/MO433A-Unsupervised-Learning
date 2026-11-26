@@ -153,6 +153,22 @@ measured GPU-hours, DINO teacher-forward GPU-hours for row C, and published
 teacher-pretraining references. A missing metadata file is reported explicitly
 instead of silently counted as zero.
 
+Run `make plot-distillation-gap` to compare row C against row B using paired
+linear-SVM results. It plots the C-minus-B accuracy difference in percentage
+points against student parameter count, with one line per labeled-data fraction
+and one-standard-deviation error bars over paired seed-level gaps (each seed's
+accuracy is averaged across its subset draws first). It also prints whether
+the mean gap narrows or widens with student size and whether B overtakes C at
+any label fraction. The paired seed results and summary are saved under
+`outputs/runs/probes/destillation_gaps/` by default, or
+`outputs/runs/smoke/destillation_gaps/` for the smoke run. The Make target runs both
+the main MLP projector and the linear-projector ablation, saving separate
+paired CSVs, summaries, and plots for each. It also writes
+`distillation_gap_ablation_grid.csv` and the report-ready
+`distillation_gap_ablation_table.md`, with one small/large student grid per
+label fraction and a statement of whether switching from MLP to linear changes
+the gap in the same direction for both sizes.
+
 ## Row B: VICReg Student Training
 Run the direct-training baseline for one named variant of the project's
 `StudentCNN` architecture. Specify all seeds for that variant with `--seeds`:

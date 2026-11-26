@@ -58,7 +58,7 @@ help:
 	@echo "  compute-cost-table        Aggregate local GPU-hours and teacher pretraining references"
 	@echo "  join-probe-costs          Combine probe results with measured encoder costs"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
-	@echo "  plot-distillation-gap    Plot paired C-minus-B gaps for both projectors"
+	@echo "  plot-distillation-gap    Plot both projectors and write the ablation grid"
 	@echo "  plots                     Generate all experiment plots"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
 	@echo "  run-experiments-smoke     Run the full pipeline with 1 epoch and smoke outputs"
@@ -256,12 +256,8 @@ plot-label-efficiency-knn:
 plot-distillation-gap:
 	$(PYTHON) -m evaluation.plot_distillation_gap \
 	  --input-dir $(OUTPUT_RUNS)/svm_evaluation \
-	  --projector-type mlp \
-	  --output-dir $(OUTPUT_RUNS)/destillation_gap
-	$(PYTHON) -m evaluation.plot_distillation_gap \
-	  --input-dir $(OUTPUT_RUNS)/svm_evaluation \
-	  --projector-type linear \
-	  --output-dir $(OUTPUT_RUNS)/destillation_gap
+	  --projector-type all \
+	  --output-dir $(OUTPUT_RUNS)/destillation_gaps
 
 plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label-efficiency-knn plot-distillation-gap
 
