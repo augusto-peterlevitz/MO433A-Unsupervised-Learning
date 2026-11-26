@@ -29,6 +29,11 @@ def parse_args():
         help="Probe to plot.",
     )
     parser.add_argument(
+        "--combined-mean-figure",
+        action="store_true",
+        help="Combine all three seed-mean probe curves in one figure.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("outputs/runs/probes/label_efficiency"),
@@ -119,6 +124,89 @@ def plot_results(results, output_path, probe="linear", mean_across_seeds=False):
     plt.close(fig)
 
 
+def plot_combined_mean_curves(output_dir):
+    probes = ("knn", "linear", "rbf")
+    frames = {}
+    for probe in probes:
+        path = output_dir / f"label_efficiency_{probe}_seed_mean_summary.csv"
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"Seed-mean summary for {probe.upper()} not found: {path}"
+            )
+        frame = pd.read_csv(path)
+        required = {"encoder", "fraction", "mean_accuracy", "std_accuracy"}
+        missing = required.difference(frame.columns)
+        if missing:
+            raise ValueError(f"{path} is missing columns: {sorted(missing)}")
+        frames[probe] = frame
+
+    reference_encoders = set(frames["knn"]["encoder"])
+    reference_fractions = set(frames["knn"]["fraction"])
+    for probe, frame in frames.items():
+        if set(frame["encoder"]) != reference_encoders:
+            raise ValueError(
+                f"{probe.upper()} seed-mean summary has different encoders."
+            )
+        if set(frame["fraction"]) != reference_fractions:
+            raise ValueError(
+                f"{probe.upper()} seed-mean summary has different label fractions."
+            )
+
+    encoders = sorted(reference_encoders)
+    colors = plt.get_cmap("tab10")
+    color_by_encoder = {
+        encoder: colors(index % colors.N)
+        for index, encoder in enumerate(encoders)
+    }
+    figure, axes = plt.subplots(1, 3, figsize=(18, 6), sharex=True)
+    probe_titles = {
+        "knn": "k-NN",
+        "linear": "Linear SVM",
+        "rbf": "RBF SVM",
+    }
+    for axis, probe in zip(axes, probes):
+        frame = frames[probe]
+        for encoder in encoders:
+            encoder_results = frame[frame["encoder"] == encoder].sort_values(
+                "fraction"
+            )
+            axis.errorbar(
+                encoder_results["fraction"],
+                encoder_results["mean_accuracy"],
+                yerr=encoder_results["std_accuracy"],
+                marker="o",
+                capsize=3,
+                linewidth=2,
+                color=color_by_encoder[encoder],
+                label=encoder,
+            )
+        axis.set_xscale("log")
+        axis.set_xticks(sorted(reference_fractions))
+        axis.set_xticklabels(
+            [f"{fraction:.0%}" for fraction in sorted(reference_fractions)]
+        )
+        axis.set_title(probe_titles[probe])
+        axis.set_xlabel("Labeled training fraction")
+        axis.set_ylabel("Test accuracy")
+        axis.grid(True, which="both", linestyle="--", alpha=0.4)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    figure.legend(
+        handles,
+        labels,
+        title="Encoder",
+        loc="lower center",
+        ncol=3,
+        bbox_to_anchor=(0.5, 0.0),
+    )
+    figure.suptitle("Label-efficiency curves (mean across seeds)", y=1.02)
+    figure.tight_layout(rect=(0, 0.18, 1, 0.98))
+    output_path = output_dir / "label_efficiency_mean_curves_all_probes.png"
+    figure.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(figure)
+    return output_path
+
+
 def summarize_seed_results(results):
     seed_info = results["encoder"].str.extract(
         r"^(?P<base>.+)_seed(?P<seed>\d+)$"
@@ -166,6 +254,11 @@ def summarize_seed_results(results):
 
 def main():
     args = parse_args()
+    if args.combined_mean_figure:
+        output_path = plot_combined_mean_curves(args.output_dir)
+        print(f"Combined seed-mean figure saved to {output_path}")
+        return
+
     paths = find_summaries(args)
     if not paths:
         raise SystemExit(

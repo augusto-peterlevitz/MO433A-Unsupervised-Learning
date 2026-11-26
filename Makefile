@@ -260,6 +260,9 @@ plot-distillation-gap:
 	  --output-dir $(OUTPUT_RUNS)/destillation_gaps
 
 plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label-efficiency-knn plot-distillation-gap
+	$(PYTHON) -m evaluation.plot_label_efficiency \
+	  --combined-mean-figure \
+	  --output-dir $(OUTPUT_RUNS)/label_efficiency
 
 diagnostics:
 	$(PYTHON) -m evaluation.representation_diagnostics \
