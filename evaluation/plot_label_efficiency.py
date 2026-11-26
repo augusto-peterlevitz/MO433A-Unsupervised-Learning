@@ -85,7 +85,7 @@ def load_results(paths, probe="linear"):
     return results.sort_values(["encoder", "fraction"])
 
 
-def plot_results(results, output_path, probe="linear"):
+def plot_results(results, output_path, probe="linear", mean_across_seeds=False):
     fig, ax = plt.subplots(figsize=(8, 5))
 
     for encoder, encoder_results in results.groupby("encoder", sort=True):
@@ -106,12 +106,62 @@ def plot_results(results, output_path, probe="linear"):
     ax.set_xlabel("Labeled training fraction")
     probe_label = "KNN" if probe == "knn" else f"{probe.upper()}-SVM"
     ax.set_ylabel(f"{probe_label} test accuracy")
-    ax.set_title(f"{probe_label} label-efficiency curves")
+    title = f"{probe_label} label-efficiency"
+    ax.set_title(
+        f"{title} (mean across seeds)"
+        if mean_across_seeds
+        else f"{title} curves"
+    )
     ax.grid(True, which="both", linestyle="--", alpha=0.4)
     ax.legend(title="Encoder")
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
+
+
+def summarize_seed_results(results):
+    seed_info = results["encoder"].str.extract(
+        r"^(?P<base>.+)_seed(?P<seed>\d+)$"
+    )
+    seeded = results[seed_info["base"].notna()].copy()
+    seeded["summary_encoder"] = seed_info.loc[seeded.index, "base"]
+    seeded["seed"] = seed_info.loc[seeded.index, "seed"].astype(int)
+
+    per_seed = (
+        seeded.groupby(
+            ["summary_encoder", "seed", "fraction"],
+            as_index=False,
+        )
+        .agg(mean_accuracy=("mean_accuracy", "mean"))
+    )
+    summary = (
+        per_seed.groupby(
+            ["summary_encoder", "fraction"],
+            as_index=False,
+        )
+        .agg(
+            mean_accuracy=("mean_accuracy", "mean"),
+            std_accuracy=("mean_accuracy", "std"),
+            seed_count=("seed", "nunique"),
+        )
+        .rename(columns={"summary_encoder": "encoder"})
+    )
+    summary["std_accuracy"] = summary["std_accuracy"].fillna(0.0)
+
+    seeded_encoders = set(summary["encoder"])
+    fixed = results[
+        ~seed_info["base"].notna()
+        & ~results["encoder"].isin(seeded_encoders)
+    ]
+    if not fixed.empty:
+        fixed_summary = (
+            fixed.groupby(["encoder", "fraction"], as_index=False)
+            .agg(mean_accuracy=("mean_accuracy", "mean"))
+            .assign(std_accuracy=0.0, seed_count=0)
+        )
+        summary = pd.concat([summary, fixed_summary], ignore_index=True)
+
+    return summary.sort_values(["encoder", "fraction"]).reset_index(drop=True)
 
 
 def main():
@@ -132,8 +182,27 @@ def main():
     figure_path = args.output_dir / f"label_efficiency_{args.probe}_curves.png"
     plot_results(results, figure_path, args.probe)
 
+    seed_summary = summarize_seed_results(results)
+    seed_summary_path = (
+        args.output_dir
+        / f"label_efficiency_{args.probe}_seed_mean_summary.csv"
+    )
+    seed_summary.to_csv(seed_summary_path, index=False)
+    seed_mean_figure_path = (
+        args.output_dir
+        / f"label_efficiency_{args.probe}_mean_curves.png"
+    )
+    plot_results(
+        seed_summary,
+        seed_mean_figure_path,
+        args.probe,
+        mean_across_seeds=True,
+    )
+
     print(f"Combined label-efficiency table saved to {table_path}")
     print(f"Label-efficiency figure saved to {figure_path}")
+    print(f"Seed-mean summary saved to {seed_summary_path}")
+    print(f"Seed-mean figure saved to {seed_mean_figure_path}")
 
 
 if __name__ == "__main__":
