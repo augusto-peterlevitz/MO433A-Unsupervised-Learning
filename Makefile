@@ -26,7 +26,7 @@ SEEDS_LARGE := 42 43
         svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
         knn-probes svm-rbf-probes svm-linear-probes teacher-probes probes \
         plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
-        plot-label-efficiency-knn plots diagnostics encoder-costs compute-cost-table join-probe-costs run-experiments \
+        plot-label-efficiency-knn plot-distillation-gap plots diagnostics encoder-costs compute-cost-table join-probe-costs run-experiments \
         run-experiments-smoke clean
 
 help:
@@ -58,7 +58,8 @@ help:
 	@echo "  compute-cost-table        Aggregate local GPU-hours and teacher pretraining references"
 	@echo "  join-probe-costs          Combine probe results with measured encoder costs"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
-	@echo "  plots                     Plot all label-efficiency curves"
+	@echo "  plot-distillation-gap    Plot paired C-minus-B gaps for both projectors"
+	@echo "  plots                     Generate all experiment plots"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
 	@echo "  run-experiments-smoke     Run the full pipeline with 1 epoch and smoke outputs"
 	@echo "  clean                     Remove generated files under outputs/"
@@ -252,7 +253,17 @@ plot-label-efficiency-svm-rbf:
 plot-label-efficiency-knn:
 	$(PYTHON) -m evaluation.plot_label_efficiency --probe knn --input-dir $(OUTPUT_RUNS) --output-dir $(OUTPUT_RUNS)/label_efficiency
 
-plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label-efficiency-knn
+plot-distillation-gap:
+	$(PYTHON) -m evaluation.plot_distillation_gap \
+	  --input-dir $(OUTPUT_RUNS)/svm_evaluation \
+	  --projector-type mlp \
+	  --output-dir $(OUTPUT_RUNS)/destillation_gap
+	$(PYTHON) -m evaluation.plot_distillation_gap \
+	  --input-dir $(OUTPUT_RUNS)/svm_evaluation \
+	  --projector-type linear \
+	  --output-dir $(OUTPUT_RUNS)/destillation_gap
+
+plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label-efficiency-knn plot-distillation-gap
 
 diagnostics:
 	$(PYTHON) -m evaluation.representation_diagnostics \
