@@ -7,14 +7,27 @@ def load_encoder_cost(feature_dir):
         with metadata_path.open(encoding="utf-8") as file:
             metadata = json.load(file)
 
-    num_parameters = metadata.get("num_parameters")
-    latency_ms = metadata.get("latency_ms")
-    device = metadata.get("device")
-    batch_size = metadata.get("batch_size")
-
     return {
-        "num_parameters": num_parameters,
-        "inference_latency_ms": latency_ms,
-        "device": device,
-        "batch_size": batch_size,
+        "num_parameters": metadata.get("num_parameters"),
+        "flops_per_image": metadata.get("flops_per_image"),
+        "gflops_per_image": metadata.get("gflops_per_image"),
+        "inference_latency_ms": metadata.get(
+            "inference_latency_ms", metadata.get("latency_ms")
+        ),
+        "inference_latency_std_ms": metadata.get(
+            "inference_latency_std_ms", metadata.get("latency_std_ms")
+        ),
+        "throughput_images_per_second": metadata.get(
+            "throughput_images_per_second"
+        ),
+        "device": metadata.get("device"),
+        "gpu_model": metadata.get("gpu_model"),
+        "batch_size": metadata.get("batch_size"),
+        "feature_batch_size": metadata.get("feature_batch_size"),
+        "latency_input_size": metadata.get(
+            "latency_input_size", metadata.get("input_size")
+        ),
+        "latency_precision": metadata.get(
+            "latency_precision", metadata.get("precision")
+        ),
     }
