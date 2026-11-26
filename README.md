@@ -23,7 +23,7 @@ Run an interactive container with the repository mounted so downloaded datasets
 and generated outputs persist on the host:
 
 ```bash
-docker run --rm -it \
+docker run --shm-size=2g --rm -it \
   -v "$PWD:/workspace" \
   -w /workspace \
   mo433-unsupervised
@@ -54,8 +54,11 @@ Checkpoints, feature caches, and reports are written under
 `outputs/{checkpoints,features,runs}/smoke/`. Downloaded assets and generated
 subset files are still required.
 
-For GPU training, pass `--gpus all` to `docker run` and ensure the host has
-NVIDIA Container Toolkit installed. CPU execution remains available without it.
+The container is started with 2 GB of shared memory for PyTorch DataLoader
+workers. If launching it manually, keep `--shm-size=2g`; Docker's small default
+shared-memory segment can cause worker bus errors. For GPU training, also pass
+`--gpus all` to `docker run` and ensure the host has NVIDIA Container Toolkit
+installed. CPU execution remains available without it.
 
 ## Download required assets
 Download both the EuroSAT RGB dataset and the pretrained DINO ViT-S/16 weights

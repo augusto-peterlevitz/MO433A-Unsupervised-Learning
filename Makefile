@@ -68,7 +68,7 @@ docker-build:
 	docker build -t mo433-unsupervised .
 
 docker-run:
-	docker run --gpus all --rm -it \
+	docker run --gpus all --shm-size=2g --rm -it \
 	  -v "$$PWD:/workspace" \
 	  -w /workspace \
 	  mo433-unsupervised
