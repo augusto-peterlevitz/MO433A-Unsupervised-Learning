@@ -217,7 +217,7 @@ knn-probes:
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type linear --seeds $(SEEDS_SMALL) --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type linear --seeds $(SEEDS_LARGE) --output-dir $(OUTPUT_RUNS)
 
-svm-rbf-probes: svm-gridsearch-rbf
+svm-rbf-probes:
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn large --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
@@ -227,12 +227,12 @@ svm-rbf-probes: svm-gridsearch-rbf
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn small --projector-type linear --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach distillation --student-cnn large --projector-type linear --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 
-teacher-probes: teacher-features svm-gridsearch-rbf svm-gridsearch-linear
+teacher-probes:
 	$(PYTHON) -m evaluation.knn_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_rbf.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach teacher_encoding --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
 
-svm-linear-probes: svm-gridsearch-linear
+svm-linear-probes:
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach random_baseline --student-cnn large --seeds $(SEEDS_LARGE) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
 	$(PYTHON) -m evaluation.svm_evaluate --feature-dir $(OUTPUT_FEATURES) --approach vicreg --student-cnn small --seeds $(SEEDS_SMALL) --params $(OUTPUT_RUNS)/svm_gridsearch/vicreg/small_cnn/seed42/svm_gridsearch_linear.json --output-dir $(OUTPUT_RUNS)
