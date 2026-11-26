@@ -274,6 +274,7 @@ diagnostics:
 	  --features-dir $(OUTPUT_FEATURES)/random_baseline/larger_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/vicreg/larger_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_mlp/larger_cnn/seed42 \
+	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_linear/larger_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/dino_vits16 \
 	  --test-pkl $(TEST_PKL) \
 	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics_large
