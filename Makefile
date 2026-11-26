@@ -304,8 +304,7 @@ join-probe-costs:
 	  --results-dir $(OUTPUT_RUNS) \
 	  --output-csv $(OUTPUT_RUNS)/summarized_results.csv
 
-# run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots encoder-costs compute-cost-table join-probe-costs
-run-experiments: diagnostics plots encoder-costs compute-cost-table join-probe-costs
+run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots encoder-costs compute-cost-table join-probe-costs
 
 run-experiments-smoke:
 	$(MAKE) run-experiments \
