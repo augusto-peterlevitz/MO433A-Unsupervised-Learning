@@ -269,7 +269,7 @@ diagnostics:
 	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_linear/small_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/dino_vits16 \
 	  --test-pkl $(TEST_PKL) \
-	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics
+	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics/small
 	$(PYTHON) -m evaluation.representation_diagnostics \
 	  --features-dir $(OUTPUT_FEATURES)/random_baseline/larger_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/vicreg/larger_cnn/seed42 \
@@ -277,7 +277,7 @@ diagnostics:
 	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_linear/larger_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/dino_vits16 \
 	  --test-pkl $(TEST_PKL) \
-	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics_large
+	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics/large
 
 encoder-costs:
 	$(PYTHON) -m scripts.measure_student_cost \
@@ -301,7 +301,8 @@ join-probe-costs:
 	  --results-dir $(OUTPUT_RUNS) \
 	  --output-csv $(OUTPUT_RUNS)/summarized_results.csv
 
-run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots encoder-costs compute-cost-table join-probe-costs
+# run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots encoder-costs compute-cost-table join-probe-costs
+run-experiments: diagnostics plots encoder-costs compute-cost-table join-probe-costs
 
 run-experiments-smoke:
 	$(MAKE) run-experiments \
