@@ -1,8 +1,8 @@
 PYTHON := python3
 CONFIG := configs/vicreg.json
-OUTPUT_CHECKPOINTS := outputs/checkpoints
-OUTPUT_FEATURES := outputs/features
-OUTPUT_RUNS := outputs/runs/probes
+OUTPUT_CHECKPOINTS := outputs/checkpoints/full
+OUTPUT_FEATURES := outputs/features/full
+OUTPUT_RUNS := outputs/runs/probes/full
 SVM_CV_SPLITS ?= 5
 FEATURE_BATCH_SIZE ?= 64
 FEATURE_NUM_WORKERS ?= 4
