@@ -175,6 +175,17 @@ paired CSVs, summaries, and plots for each. It also writes
 label fraction and a statement of whether switching from MLP to linear changes
 the gap in the same direction for both sizes.
 
+## Final probe results table
+After `make join-probe-costs`, run `make final-results` to create
+`outputs/runs/probes/full/final_results.csv`. The script reads the joined
+`summarized_results.csv`, excludes already-aggregated rows to avoid double
+counting, and averages per-seed summary accuracies for each encoder, label
+fraction, and probe. `accuracy` is formatted as mean ± sample standard
+deviation over seeds; numeric mean and deviation are also provided separately.
+The table includes parameter count, mean inference latency, latency deviation,
+device/GPU, batch size, input size, precision, and warm-up/timed iteration
+counts so the measurement setup is explicit.
+
 ## Row B: VICReg Student Training
 Run the direct-training baseline for one named variant of the project's
 `StudentCNN` architecture. Specify all seeds for that variant with `--seeds`:

@@ -26,7 +26,7 @@ SEEDS_LARGE := 42 43
         svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
         knn-probes svm-rbf-probes svm-linear-probes teacher-probes probes \
         plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
-        plot-label-efficiency-knn plot-distillation-gap plot-dataset-samples plots diagnostics encoder-costs compute-cost-table join-probe-costs run-experiments \
+        plot-label-efficiency-knn plot-distillation-gap plot-dataset-samples plots diagnostics encoder-costs compute-cost-table join-probe-costs final-results run-experiments \
         run-experiments-smoke clean
 
 help:
@@ -57,6 +57,7 @@ help:
 	@echo "  encoder-costs             Measure encoder parameters, FLOPs, and latency"
 	@echo "  compute-cost-table        Aggregate local GPU-hours and teacher pretraining references"
 	@echo "  join-probe-costs          Combine probe results with measured encoder costs"
+	@echo "  final-results             Aggregate probe summaries into final_results.csv"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
 	@echo "  plot-distillation-gap    Plot both projectors and write the ablation grid"
 	@echo "  plot-dataset-samples     Plot five EuroSAT samples per class"
@@ -312,7 +313,12 @@ join-probe-costs:
 	  --results-dir $(OUTPUT_RUNS) \
 	  --output-csv $(OUTPUT_RUNS)/summarized_results.csv
 
-run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots encoder-costs compute-cost-table join-probe-costs
+final-results:
+	$(PYTHON) -m scripts.create_final_results \
+	  --input-csv $(OUTPUT_RUNS)/summarized_results.csv \
+	  --output-csv $(OUTPUT_RUNS)/final_results.csv
+
+run-experiments: teacher-features train-vicreg train-distillation distillation-ablation baseline-features vicreg-features distillation-features distillation-linear-features svm-gridsearch probes teacher-probes diagnostics plots encoder-costs compute-cost-table join-probe-costs final-results
 
 run-experiments-smoke:
 	$(MAKE) run-experiments \
