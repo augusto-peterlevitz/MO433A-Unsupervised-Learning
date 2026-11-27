@@ -157,10 +157,13 @@ teacher-pretraining references. A missing metadata file is reported explicitly
 instead of silently counted as zero.
 
 Run `make plot-distillation-gap` to compare row C against row B using paired
-linear-SVM results. It plots the C-minus-B accuracy difference in percentage
-points against student parameter count, with one line per labeled-data fraction
-and one-standard-deviation error bars over paired seed-level gaps (each seed's
-accuracy is averaged across its subset draws first). It also prints whether
+linear-SVM results. It plots grouped bars for the C-minus-B accuracy difference
+in percentage points at each labeled-data fraction, with small and large
+students side by side. Bar color identifies the label fraction, hatching
+identifies student size, and error bars show one standard deviation over paired
+seed-level gaps (each seed's accuracy is averaged across its subset draws
+first). Separate legends identify label fractions and student sizes with
+parameter counts. It also prints whether
 the mean gap narrows or widens with student size and whether B overtakes C at
 any label fraction. The paired seed results and summary are saved under
 `outputs/runs/probes/destillation_gaps/` by default, or

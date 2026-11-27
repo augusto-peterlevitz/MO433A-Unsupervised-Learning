@@ -3,6 +3,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.patches import Patch
 
 
 PAIR_COLUMNS = ["random_seed", "fraction", "student_size"]
@@ -17,8 +18,8 @@ REQUIRED_COLUMNS = {
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            "Plot paired seed-level linear-SVM accuracy gaps between "
-            "distilled and directly trained students against parameter count."
+            "Plot paired-seed linear-SVM accuracy gaps by label fraction and "
+            "student size."
         )
     )
     parser.add_argument(
@@ -365,30 +366,103 @@ def print_size_comparison(summary):
 
 
 def plot_gaps(summary, output_path, projector_type):
-    fig, ax = plt.subplots(figsize=(8, 5))
-    for fraction, group in summary.groupby("fraction", sort=True):
-        group = group.sort_values("student_parameters")
-        ax.errorbar(
-            group["student_parameters"],
-            group["mean_gap_pp"],
-            yerr=group["std_gap_pp"].fillna(0.0),
-            marker="o",
-            capsize=4,
-            linewidth=2,
-            label=f"{fraction:.0%} labels",
-        )
+    student_sizes = ("small", "large")
+    fractions = sorted(summary["fraction"].unique())
+    if not fractions:
+        raise ValueError("No label fractions found in the distillation summary.")
+
+    parameter_counts = {}
+    for student_size in student_sizes:
+        size_rows = summary[summary["student_size"] == student_size]
+        counts = size_rows["student_parameters"].unique()
+        if len(counts) != 1:
+            raise ValueError(
+                f"Expected one parameter count for {student_size} students, "
+                f"found {counts.tolist()}."
+            )
+        parameter_counts[student_size] = int(counts[0])
+
+    cell_rows = {}
+    for fraction in fractions:
+        for student_size in student_sizes:
+            cell = summary[
+                (summary["fraction"] == fraction)
+                & (summary["student_size"] == student_size)
+            ]
+            if len(cell) != 1:
+                raise ValueError(
+                    f"Expected one summary row for {fraction:.0%} labels and "
+                    f"{student_size} students, found {len(cell)}."
+                )
+            cell_rows[(fraction, student_size)] = cell.iloc[0]
+
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    x_positions = range(len(fractions))
+    color_map = plt.get_cmap("tab10", len(fractions))
+    colors = [color_map(index) for index in range(len(fractions))]
+    student_hatches = {"small": "", "large": "///"}
+    bar_width = 0.34
+    student_spacing = 0.38
+    for fraction_index, fraction in enumerate(fractions):
+        for size_index, student_size in enumerate(student_sizes):
+            cell = cell_rows[(fraction, student_size)]
+            ax.bar(
+                fraction_index
+                + (size_index - (len(student_sizes) - 1) / 2) * student_spacing,
+                cell["mean_gap_pp"],
+                width=bar_width,
+                yerr=0.0 if pd.isna(cell["std_gap_pp"]) else cell["std_gap_pp"],
+                capsize=4,
+                color=colors[fraction_index],
+                edgecolor="black",
+                linewidth=0.7,
+                hatch=student_hatches[student_size],
+                error_kw={"elinewidth": 1, "capthick": 1},
+            )
 
     ax.axhline(0.0, color="black", linewidth=1, linestyle="--")
-    ax.set_xscale("log")
-    parameter_counts = sorted(summary["student_parameters"].unique())
-    ax.set_xticks(parameter_counts)
-    ax.set_xticklabels([f"{count:,}" for count in parameter_counts])
-    ax.set_xlabel("Student backbone parameters (log scale)")
+    ax.set_xticks(list(x_positions))
+    ax.set_xticklabels([f"{fraction:.0%}" for fraction in fractions])
+    ax.set_xlabel("Labeled training fraction")
     ax.set_ylabel("C − B linear-SVM accuracy (percentage points)")
-    ax.set_title(f"C − B gap by student size ({projector_type} projector)")
-    ax.grid(True, which="both", linestyle="--", alpha=0.4)
-    ax.legend(title="Label fraction")
-    fig.tight_layout()
+    ax.set_title(f"C − B gap by label fraction ({projector_type} projector)")
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+
+    fraction_handles = [
+        Patch(
+            facecolor=colors[index],
+            edgecolor="black",
+            label=f"{fraction:.0%}",
+        )
+        for index, fraction in enumerate(fractions)
+    ]
+    fraction_legend = ax.legend(
+        handles=fraction_handles,
+        title="Label fraction",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+    )
+    ax.add_artist(fraction_legend)
+    student_handles = [
+        Patch(
+            facecolor="white",
+            edgecolor="black",
+            hatch=student_hatches[student_size],
+            label=(
+                f"{student_size.title()} = "
+                f"{parameter_counts[student_size]:,} parameters"
+            ),
+        )
+        for student_size in student_sizes
+    ]
+    ax.legend(
+        handles=student_handles,
+        title="Student",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 0.48),
+    )
+    fig.subplots_adjust(left=0.12, right=0.72, bottom=0.12, top=0.9)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
