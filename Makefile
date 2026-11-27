@@ -271,6 +271,7 @@ diagnostics:
 	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_mlp/small_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_linear/small_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/dino_vits16 \
+	  --eurosat-root $(EUROSAT_ROOT) \
 	  --test-pkl $(TEST_PKL) \
 	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics/small
 	$(PYTHON) -m evaluation.representation_diagnostics \
@@ -279,6 +280,7 @@ diagnostics:
 	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_mlp/larger_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/distillation/projector_linear/larger_cnn/seed42 \
 	  --features-dir $(OUTPUT_FEATURES)/dino_vits16 \
+	  --eurosat-root $(EUROSAT_ROOT) \
 	  --test-pkl $(TEST_PKL) \
 	  --output-dir $(OUTPUT_RUNS)/representation_diagnostics/large
 

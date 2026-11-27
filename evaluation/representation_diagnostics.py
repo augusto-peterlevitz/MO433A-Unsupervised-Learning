@@ -10,6 +10,7 @@ from sklearn.manifold import TSNE
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 from sklearn.preprocessing import normalize
 from data.dataloaders import load_test_indices, get_data
+from data.eurosat import EuroSAT
 from evaluation.utils import (
     get_aggregate_encoder_name,
     get_cache_seed,
@@ -37,6 +38,12 @@ def parse_args():
         default=Path("datasets/eurosat_test_subset.pkl"),
         help="Pickle containing held-out test indices.",
     )
+    parser.add_argument(
+        "--eurosat-root",
+        type=Path,
+        default=Path("datasets/EuroSAT_RGB"),
+        help="EuroSAT dataset directory used to resolve class names.",
+    )
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/runs/probes"))
     parser.add_argument("--perplexity", type=float, default=30.0)
     parser.add_argument("--random-state", type=int, default=42)
@@ -60,24 +67,9 @@ def main():
     args = parse_args()
 
     test_indices = load_test_indices(args.test_pkl)
+    class_names = EuroSAT(root=args.eurosat_root).classes
     encoder_data = []
     reference_labels = None
-
-    # for feature_dir in args.features_dir:
-    #     features, labels = get_data(test_indices, feature_dir)
-    #     # Unit-length features put embeddings from differently scaled encoders
-    #     # on a comparable scale for these distance-based diagnostics.
-    #     features = normalize(features, norm="l2")
-    #     n_clusters = len(np.unique(labels))
-    #     metrics = fit_kmeans(features, labels, n_clusters=n_clusters, n_init=10, random_state=args.random_state)
-    #     projections = TSNE(
-    #         n_components=2,
-    #         perplexity=args.perplexity,
-    #         init="pca",
-    #         learning_rate="auto",
-    #         n_iter=1000,
-    #         random_state=args.random_state,
-    #     ).fit_transform(features)
 
     for feature_dir in args.features_dir:
         features, labels = get_data(test_indices, feature_dir)
@@ -114,6 +106,12 @@ def main():
     classes = np.unique(labels)
     if classes.size < 2:
         raise ValueError("At least two test classes are required for diagnostics.")
+    if not np.issubdtype(classes.dtype, np.integer) or np.any(
+        (classes < 0) | (classes >= len(class_names))
+    ):
+        raise ValueError(
+            "Test labels must be integer class indices present in the EuroSAT dataset."
+        )
     if args.perplexity <= 0 or args.perplexity >= test_indices.size:
         raise ValueError(
             f"t-SNE perplexity must be greater than 0 and less than the "
@@ -190,17 +188,32 @@ def main():
                 s=10,
                 alpha=0.7,
                 color=color_map(class_index),
-                label=str(label),
+                label=class_names[int(label)],
                 rasterized=True,
             )
         axis.set_title(title)
         axis.set_xlabel("t-SNE 1")
         axis.set_ylabel("t-SNE 2")
 
-    for axis in axes.flat[n_encoders:]:
-        axis.set_visible(False)
     handles, legend_labels = axes.flat[0].get_legend_handles_labels()
-    figure.legend(handles, legend_labels, title="True label", loc="outside right center")
+    if n_encoders < axes.size:
+        legend_axis = axes.flat[n_encoders]
+        legend_axis.set_axis_off()
+        legend_axis.legend(
+            handles,
+            legend_labels,
+            title="True label",
+            loc="center",
+        )
+        for axis in axes.flat[n_encoders + 1:]:
+            axis.set_visible(False)
+    else:
+        figure.legend(
+            handles,
+            legend_labels,
+            title="True label",
+            loc="outside right center",
+        )
     plot_path = args.output_dir / "tsne_projections.png"
     figure.savefig(plot_path, dpi=200)
     plt.close(figure)

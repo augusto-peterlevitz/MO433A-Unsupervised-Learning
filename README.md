@@ -573,6 +573,7 @@ The script uses the same held-out test indices for all encoders, L2-normalizes
 the cached features, and runs k-means with one cluster per test class. It saves
 NMI and ARI in `representation_metrics.csv`, t-SNE coordinates in
 `tsne_coordinates.csv`, and a comparable panel in `tsne_projections.png`.
+The t-SNE legend uses the EuroSAT class names from the dataset directory.
 All encoders use the same t-SNE perplexity and random seed; override them with
 `--perplexity` and `--random-state` if needed. Run
 `python3 -m evaluation.representation_diagnostics --help` for all options.
