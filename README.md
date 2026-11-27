@@ -578,6 +578,18 @@ All encoders use the same t-SNE perplexity and random seed; override them with
 `--perplexity` and `--random-state` if needed. Run
 `python3 -m evaluation.representation_diagnostics --help` for all options.
 
+## EuroSAT sample figure
+Generate a reproducible grid containing five randomly selected images from
+each EuroSAT class:
+
+```bash
+make plot-dataset-samples
+```
+
+The figure is saved to `outputs/figures/eurosat_samples.png`. Run
+`python3 -m scripts.plot_dataset_samples --help` to choose another dataset
+directory, output path, or random seed.
+
 
 ## Makefile experiment pipeline
 The repository provides Make targets that run the project steps while preserving

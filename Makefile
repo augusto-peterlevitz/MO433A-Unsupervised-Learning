@@ -26,7 +26,7 @@ SEEDS_LARGE := 42 43
         svm-gridsearch svm-gridsearch-rbf svm-gridsearch-linear \
         knn-probes svm-rbf-probes svm-linear-probes teacher-probes probes \
         plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf \
-        plot-label-efficiency-knn plot-distillation-gap plots diagnostics encoder-costs compute-cost-table join-probe-costs run-experiments \
+        plot-label-efficiency-knn plot-distillation-gap plot-dataset-samples plots diagnostics encoder-costs compute-cost-table join-probe-costs run-experiments \
         run-experiments-smoke clean
 
 help:
@@ -59,6 +59,7 @@ help:
 	@echo "  join-probe-costs          Combine probe results with measured encoder costs"
 	@echo "  plot-label-efficiency-*   Plot linear-SVM, RBF-SVM, or KNN curves"
 	@echo "  plot-distillation-gap    Plot both projectors and write the ablation grid"
+	@echo "  plot-dataset-samples     Plot five EuroSAT samples per class"
 	@echo "  plots                     Generate all experiment plots"
 	@echo "  run-experiments           Run the complete experiment pipeline (considering the subset generation is already done)"
 	@echo "  run-experiments-smoke     Run the full pipeline with 1 epoch and smoke outputs"
@@ -263,6 +264,11 @@ plots: plot-label-efficiency-svm-linear plot-label-efficiency-svm-rbf plot-label
 	$(PYTHON) -m evaluation.plot_label_efficiency \
 	  --combined-mean-figure \
 	  --output-dir $(OUTPUT_RUNS)/label_efficiency
+
+plot-dataset-samples:
+	$(PYTHON) -m scripts.plot_dataset_samples \
+	  --eurosat-root $(EUROSAT_ROOT) \
+	  --output $(OUTPUT_RUNS)/eurosat_samples.png
 
 diagnostics:
 	$(PYTHON) -m evaluation.representation_diagnostics \
