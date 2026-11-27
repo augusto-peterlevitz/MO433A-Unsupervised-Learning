@@ -24,10 +24,14 @@ and generated outputs persist on the host:
 
 ```bash
 docker run --shm-size=2g --rm -it \
+  -p 6006:6006 \
   -v "$PWD:/workspace" \
   -w /workspace \
   mo433-unsupervised
 ```
+
+Inside the container, start TensorBoard with `make tensorboard` and open
+`http://localhost:6006` on the host.
 
 Inside the container, download the dataset and DINO weights and run the
 experiment Make targets as usual:

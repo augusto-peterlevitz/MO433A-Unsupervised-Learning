@@ -71,12 +71,13 @@ docker-build:
 
 docker-run:
 	docker run --gpus all --shm-size=2g --rm -it \
+	  -p 6006:6006 \
 	  -v "$$PWD:/workspace" \
 	  -w /workspace \
 	  mo433-unsupervised
 
 tensorboard:
-	tensorboard --logdir outputs/checkpoints
+	$(PYTHON) -m tensorboard.main --logdir outputs/checkpoints --host 0.0.0.0 --port 6006
 
 download-dino:
 	@if [ -f $(DINO_CHECKPOINT) ]; then echo "DINO weights already exist: $(DINO_CHECKPOINT)"; else mkdir -p $(@D); curl -L --fail --retry 3 -o $(DINO_CHECKPOINT) $(DINO_WEIGHTS_URL); fi

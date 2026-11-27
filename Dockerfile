@@ -6,6 +6,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /workspace
 
+EXPOSE 6006
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         git \
